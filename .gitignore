@@ -1,0 +1,53 @@
+# ===== Secrets (绝对不要提交) =====
+.env
+.env.local
+.env.*.local
+# .env.example 保留作为模板
+
+# ===== 大数据文件 (可通过 data/import_*.py 重新生成) =====
+# 2.8GB 的 Amazon 原始数据集
+data/*.csv.gz
+data/*.csv
+data/*.parquet
+# 保留 data/*.json (仅 6.4M, 让 clone 后可直接导入)
+# 保留所有 data/*.py 脚本
+
+# ===== 第三方/大模型代码 (单独 clone, 见 TRYON_SETUP.md) =====
+ACGPN/
+
+# ===== Try-on 运行时上传/结果 =====
+static/uploads/
+static/results/
+
+# ===== Python =====
+__pycache__/
+*.py[cod]
+*$py.class
+*.so
+.pytest_cache/
+*.egg-info/
+build/
+*.egg
+
+# ===== Node / 前端 =====
+node_modules/
+frontend/dist/
+frontend/.vite/
+*.log
+npm-debug.log*
+yarn-debug.log*
+
+# ===== IDE / 编辑器 =====
+.idea/
+.vscode/
+*.swp
+*.swo
+*~
+
+# ===== 操作系统 =====
+.DS_Store
+Thumbs.db
+desktop.ini
+
+# ===== Claude Code 本地会话 =====
+.claude/

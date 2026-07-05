@@ -1,0 +1,35 @@
+services:
+  mysql:
+    image: mysql:8
+    container_name: clothing_mysql
+    ports:
+      - "3306:3306"
+    environment:
+      MYSQL_ROOT_PASSWORD: root123
+      MYSQL_DATABASE: clothing_recommender
+    volumes:
+      - mysql_data:/var/lib/mysql
+
+  neo4j:
+    image: neo4j:5
+    container_name: clothing_neo4j
+    ports:
+      - "7474:7474"
+      - "7687:7687"
+    environment:
+      NEO4J_AUTH: neo4j/password
+    volumes:
+      - neo4j_data:/data
+
+  redis:
+    image: redis:7-alpine
+    container_name: clothing_redis
+    ports:
+      - "6379:6379"
+    volumes:
+      - redis_data:/data
+
+volumes:
+  mysql_data:
+  neo4j_data:
+  redis_data:
