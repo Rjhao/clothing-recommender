@@ -1,0 +1,33 @@
+{
+  "_meta": {
+    "stage": "3 (improvement B done right + baselines)",
+    "date": "2026-07-06",
+    "protocol": "sampled-100 leave-one-out, 5295 test users, K in {5,10,20}",
+    "device": "cuda (RTX 5060 Laptop sm_120), torch 2.11.0+cu128",
+    "hyperparams": {"embedding_dim": 64, "epochs": 100, "batch_size": 256, "lr": 0.001, "seed": 42}
+  },
+  "full_comparison_hr10_sorted": [
+    {"method": "UserCF",            "hr10": 0.5022, "ndcg10": 0.3734, "type": "baseline"},
+    {"method": "Popular",           "hr10": 0.4234, "ndcg10": 0.3207, "type": "baseline"},
+    {"method": "LightGCN",          "hr10": 0.4149, "ndcg10": 0.3137, "type": "baseline"},
+    {"method": "KG-HybridRec M3b",  "hr10": 0.4072, "ndcg10": 0.3021, "type": "ours (real-B)"},
+    {"method": "KG-HybridRec M0",   "hr10": 0.4047, "ndcg10": 0.3036, "type": "ours"},
+    {"method": "KG-HybridRec M3",   "hr10": 0.4043, "ndcg10": 0.3009, "type": "ours (feat-dropout B)"},
+    {"method": "BPR-MF",            "hr10": 0.3662, "ndcg10": 0.2761, "type": "baseline"},
+    {"method": "ItemCF",            "hr10": 0.2939, "ndcg10": 0.1851, "type": "baseline"}
+  ],
+  "key_findings": {
+    "improvement_b_done_right": "M3b (real heterogeneous graph + edge-dropout two-view InfoNCE) HR@10=0.4072 vs M3 (feature-dropout approx) 0.4043. Gain +0.003 — marginal. Improvement B implemented per paper but data limits the gain.",
+    "usercf_dominates": "UserCF (0.5022) beats ALL learned models including ours (0.4072) and LightGCN (0.4149). Root cause: synthetic interactions are popularity-weighted, so user-user cosine similarity captures the popularity pattern directly. This is a property of the synthetic data, not UserCF's intrinsic strength.",
+    "data_is_ceiling": "All learned models cluster at HR@10 0.40-0.41 (M0/M3/M3b/LightGCN), while non-learned popularity/UserCF exploit the synthetic-data popularity bias better. The complex KG+GAT+contrastive machinery learns nothing beyond popularity on this data.",
+    "cold_start_contradiction": "Cold-item HR@10=0.0185 (near-random) confirms BPR-MF family cannot handle uninteracted items, yet UserCF thrives — again pointing to popularity bias as the dominant learnable signal."
+  },
+  "vs_paper": {
+    "hr10_paper_target": 0.561,
+    "hr10_best_ours": 0.4072,
+    "hr10_best_overall": 0.5022,
+    "gap_ours_to_paper": 0.1538,
+    "root_cause": "synthetic data lacks genuine collaborative structure (1509 real + 39097 popularity-weighted synthetic interactions)"
+  },
+  "honest_assessment": "Per EXPERIMENT_PLAN principle '真实可复现的 0.48 > 编造的 0.561'. The 0.561 target is unreachable on this synthetic data regardless of model complexity — UserCF at 0.5022 is likely near the data's ceiling. Recommend: (1) report real numbers honestly, (2) stage 3 tuning/seed-repeats unlikely to close 0.15 gap, (3) paper revision should reflect Amazon synthetic-data caveat."
+}

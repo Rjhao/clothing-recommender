@@ -2,12 +2,19 @@
 
 Computes HR@K, NDCG@K, Precision@K, Recall@K metrics.
 
+评估协议（业界标准，与论文可比）:
+  - Leave-one-out: 每用户最后 1 条交互作为 test 正样本，其余进 train
+  - Sampled-100: 每 test 正样本配 100 个随机负样本，共 101 候选排序
+  - HR@K / NDCG@K，K ∈ {5, 10, 20}
+
 Usage:
-    python -m recommender.evaluate --model checkpoints/best_model.pt --data data/amazon_fashion_processed.json
+    python -m recommender.evaluate --model checkpoints/best_model.pt \
+        --data data/amazon_fashion_expanded.json
 """
 import argparse
 import json
 import logging
+import random
 import sys
 from pathlib import Path
 
@@ -29,62 +36,44 @@ def parse_args():
     parser.add_argument('--model', type=str, required=True, help='Path to model checkpoint')
     parser.add_argument('--data', type=str, required=True, help='Path to data JSON')
     parser.add_argument('--batch-size', type=int, default=256)
-    parser.add_argument('--k', type=int, nargs='+', default=[5, 10, 20], help='K values for HR@K, NDCG@K')
+    parser.add_argument('--k', type=int, nargs='+', default=[5, 10, 20], help='K values')
+    parser.add_argument('--n-negative', type=int, default=100, help='sampled negatives per positive')
+    parser.add_argument('--seed', type=int, default=42)
+
+    # 三项改进开关（须与训练时一致，否则权重对不上）
+    parser.add_argument('--use-a', type=int, default=1)
+    parser.add_argument('--use-b', type=int, default=1)
+    parser.add_argument('--use-c', type=int, default=1)
+    parser.add_argument('--use-multimodal', type=int, default=0)
+    parser.add_argument('--embedding-dim', type=int, default=64)
 
     return parser.parse_args()
 
 
 def compute_hr_at_k(positive_items, recommended_items, k):
-    """Compute Hit Rate at K.
-
-    Args:
-        positive_items: List of positive (relevant) items
-        recommended_items: List of recommended items (sorted by score, top K)
-        k: Cutoff
-
-    Returns:
-        1 if any positive item is in top-K recommendations, 0 otherwise
-    """
     recommended_k = set(recommended_items[:k])
     return 1 if any(item in recommended_k for item in positive_items) else 0
 
 
 def compute_ndcg_at_k(positive_items, recommended_items, k):
-    """Compute NDCG at K.
-
-    Args:
-        positive_items: List of positive (relevant) items
-        recommended_items: List of recommended items (sorted by score, top K)
-        k: Cutoff
-
-    Returns:
-        NDCG@K score
-    """
     recommended_k = recommended_items[:k]
-
     dcg = 0
     for i, item in enumerate(recommended_k):
         if item in positive_items:
-            dcg += 1 / np.log2(i + 2)  # i+2 because position starts at 1 and we want i+2 for formula
-
-    # IDCG: ideal case where all positive items are at the top
+            dcg += 1 / np.log2(i + 2)
     n_positive = len(positive_items)
     idcg = sum(1 / np.log2(i + 2) for i in range(min(n_positive, k)))
-
     if idcg == 0:
         return 0.0
-
     return dcg / idcg
 
 
 def compute_precision_at_k(positive_items, recommended_items, k):
-    """Compute Precision at K."""
     recommended_k = set(recommended_items[:k])
     return len(recommended_k & set(positive_items)) / k
 
 
 def compute_recall_at_k(positive_items, recommended_items, k):
-    """Compute Recall at K."""
     recommended_k = set(recommended_items[:k])
     n_positive = len(positive_items)
     if n_positive == 0:
@@ -92,20 +81,48 @@ def compute_recall_at_k(positive_items, recommended_items, k):
     return len(recommended_k & set(positive_items)) / n_positive
 
 
-def evaluate_model(model, test_data, user2idx, item2idx, batch_size=256, k_values=[5, 10, 20]):
-    """Evaluate model on test data.
-
-    Args:
-        model: KG-HybridRec model
-        test_data: List of (user_idx, positive_items, negative_items) tuples
-        user2idx: User ID to index mapping
-        item2idx: Item ID to index mapping
-        batch_size: Batch size for evaluation
-        k_values: List of K values for metrics
+def build_loo_test(interactions, user2idx, item2idx, n_negative=100, seed=42):
+    """Leave-one-out: 每用户最后 1 条交互作 test 正样本，配 sampled 负样本。
 
     Returns:
-        Dictionary of metrics
+        test_data: list of (user_idx, [pos_item_idx], [neg_item_idx...])
     """
+    rng = random.Random(seed)
+
+    # 按 user 聚合交互（保留顺序）
+    user_items = {}
+    for inter in interactions:
+        uid = int(inter['user_id'])
+        iid = int(inter['product_id'])
+        if uid in user2idx and iid in item2idx:
+            user_items.setdefault(user2idx[uid], []).append(item2idx[iid])
+
+    n_items = len(item2idx)
+    all_item_set = set(range(n_items))
+
+    test_data = []
+    for uid_idx, items in user_items.items():
+        if len(items) < 2:
+            # 交互不足 2 条的用户，leave-one-out 无法做，跳过
+            continue
+        pos_test = items[-1]  # 最后 1 条作 test
+        train_items = set(items[:-1])
+
+        # sampled negatives：从用户未交互的商品中抽 n_negative 个
+        candidates = list(all_item_set - train_items - {pos_test})
+        if len(candidates) < n_negative:
+            # 不够就用全部
+            negs = candidates
+        else:
+            negs = rng.sample(candidates, n_negative)
+
+        test_data.append((uid_idx, [pos_test], negs))
+
+    return test_data
+
+
+def evaluate_model(model, test_data, k_values, device='cpu', user_count=None):
+    """Sampled-100 评估：对每个用户，将 1 正 + N 负 共 N+1 候选排序算指标。"""
     model.eval()
 
     results = {f'hr@{k}': [] for k in k_values}
@@ -113,138 +130,97 @@ def evaluate_model(model, test_data, user2idx, item2idx, batch_size=256, k_value
     results.update({f'precision@{k}': [] for k in k_values})
     results.update({f'recall@{k}': [] for k in k_values})
 
-    n_users = len(user2idx)
-    n_items = len(item2idx)
-
     with torch.no_grad():
         for user_idx, pos_items, neg_items in tqdm(test_data, desc='Evaluating'):
-            # Combine positive and negative items as candidates
             candidate_items = list(pos_items) + list(neg_items)
-            candidate_set = set(candidate_items)
+            user_ids = torch.LongTensor([user_idx] * len(candidate_items)).to(device)
+            item_ids = torch.LongTensor(candidate_items).to(device)
 
-            # Get scores for all candidates
-            user_ids = torch.LongTensor([user_idx] * len(candidate_items))
-            item_ids = torch.LongTensor(candidate_items)
+            if user_count is not None:
+                cnt = user_count.get(user_idx, 1)
+                counts = torch.LongTensor([cnt] * len(candidate_items)).to(device)
+                scores = model.predict_score(user_ids, item_ids, interaction_counts=counts)
+            else:
+                scores = model.predict_score(user_ids, item_ids)
 
-            scores = model.predict_score(user_ids, item_ids)
-
-            # Sort by score (descending)
-            sorted_indices = torch.argsort(scores, descending=True).tolist()
+            sorted_indices = torch.argsort(scores, descending=True).cpu().tolist()
             ranked_items = [candidate_items[i] for i in sorted_indices]
 
-            # Compute metrics for each K
             for k in k_values:
-                hr = compute_hr_at_k(pos_items, ranked_items, k)
-                ndcg = compute_ndcg_at_k(pos_items, ranked_items, k)
-                prec = compute_precision_at_k(pos_items, ranked_items, k)
-                rec = compute_recall_at_k(pos_items, ranked_items, k)
+                results[f'hr@{k}'].append(compute_hr_at_k(pos_items, ranked_items, k))
+                results[f'ndcg@{k}'].append(compute_ndcg_at_k(pos_items, ranked_items, k))
+                results[f'precision@{k}'].append(compute_precision_at_k(pos_items, ranked_items, k))
+                results[f'recall@{k}'].append(compute_recall_at_k(pos_items, ranked_items, k))
 
-                results[f'hr@{k}'].append(hr)
-                results[f'ndcg@{k}'].append(ndcg)
-                results[f'precision@{k}'].append(prec)
-                results[f'recall@{k}'].append(rec)
-
-    # Average metrics
-    avg_results = {k: np.mean(v) for k, v in results.items()}
-
-    return avg_results
+    return {k: float(np.mean(v)) for k, v in results.items()}
 
 
 def main():
     args = parse_args()
 
-    # Load model
-    logger.info(f"Loading model from {args.model}")
+    from recommender.train import load_data, prepare_training_data
+    from recommender.kgat.hetero_graph import build_graph_for_model
 
-    # Load data to get dimensions
-    with open(args.data, 'r', encoding='utf-8') as f:
-        data = json.load(f)
+    products, users, interactions = load_data(args.data)
+    data = prepare_training_data(users, interactions, seed=args.seed)
+    user2idx = data['user2idx']
+    item2idx = data['item2idx']
+    n_users = data['n_users']
+    n_items = data['n_items']
 
-    products = data['products']
-    users = data['users']
-    interactions = data['interactions']
+    device = 'cuda' if torch.cuda.is_available() else 'cpu'
+    logger.info(f"Device: {device}")
 
-    # Build mappings
-    user_ids = sorted(set(int(i['user_id']) for i in interactions))
-    item_ids = sorted(set(int(i['product_id']) for i in interactions))
+    # Rebuild the same graph used at training (for KG branch + improvement B)
+    graph = build_graph_for_model(products, data['train_data'], user2idx, item2idx)
+    logger.info(f"Built hetero graph: {graph['n_total']} nodes, {graph['edge_index'].size(1)} edges")
 
-    n_users = len(user_ids)
-    n_items = len(item_ids)
-    n_entities = n_items + n_users + 100
-    n_relations = 10
+    n_entities = graph['n_total']
+    n_relations = graph['n_relations']
 
-    # Create model
+    # Per-user interaction count tensor (real values for adaptive gate)
+    user_count_array = torch.zeros(n_users, dtype=torch.float32)
+    for uid, cnt in data['user_count'].items():
+        user_count_array[uid] = cnt
+
     model = KGHybridRec(
         n_users=n_users,
         n_items=n_items,
         n_entities=n_entities,
         n_relations=n_relations,
-        embedding_dim=64,
+        embedding_dim=args.embedding_dim,
         n_hops=2,
         n_heads=4,
         n_layers=2,
-        use_improvement_a=True,
-        use_improvement_b=True,
-        use_improvement_c=True,
+        use_multimodal=bool(args.use_multimodal),
+        use_improvement_a=bool(args.use_a),
+        use_improvement_b=bool(args.use_b),
+        use_improvement_c=bool(args.use_c),
+        graph=graph,
+        n_interactions=user_count_array,
+    ).to(device)
+
+    model.load_state_dict(torch.load(args.model, map_location=device))
+    logger.info("Model loaded")
+
+    test_data = build_loo_test(
+        interactions, user2idx, item2idx,
+        n_negative=args.n_negative, seed=args.seed,
     )
+    logger.info(f"Test users: {len(test_data)}, sampled negatives: {args.n_negative}")
 
-    # Load weights
-    model.load_state_dict(torch.load(args.model, map_location='cpu'))
-    logger.info("Model loaded successfully")
+    results = evaluate_model(model, test_data, args.k, device=device, user_count=data['user_count'])
 
-    # Prepare test data (use same logic as train.py)
-    user2idx = {uid: idx for idx, uid in enumerate(user_ids)}
-    item2idx = {iid: idx for idx, iid in enumerate(item_ids)}
-
-    # Build user interactions
-    user_pos_items = {}
-    for interaction in interactions:
-        uid = int(interaction['user_id'])
-        iid = int(interaction['product_id'])
-        if uid in user2idx and iid in item2idx:
-            uid_idx = user2idx[uid]
-            iid_idx = item2idx[iid]
-            user_pos_items.setdefault(uid_idx, []).append(iid_idx)
-
-    # Create test samples
-    test_data = []
-    for uid_idx, pos_items in user_pos_items.items():
-        # For simplicity, use the positive items as both " positives to test"
-        # and sample negatives from other items
-        all_items = set(range(n_items))
-        neg_items = list(all_items - set(pos_items))
-
-        test_data.append((
-            uid_idx,
-            pos_items,
-            neg_items[:len(pos_items)]  # Same number of negatives as positives
-        ))
-
-    logger.info(f"Test samples: {len(test_data)}")
-
-    # Evaluate
-    results = evaluate_model(
-        model=model,
-        test_data=test_data,
-        user2idx=user2idx,
-        item2idx=item2idx,
-        batch_size=args.batch_size,
-        k_values=args.k,
-    )
-
-    # Print results
-    logger.info("\n" + "="*50)
-    logger.info("Evaluation Results")
-    logger.info("="*50)
-
+    logger.info("\n" + "=" * 50)
+    logger.info("Evaluation Results (sampled-{})".format(args.n_negative))
+    logger.info("=" * 50)
     for metric, value in sorted(results.items()):
         logger.info(f"{metric}: {value:.4f}")
 
-    # Save results
     output_path = Path(args.model).parent / 'evaluation_results.json'
     with open(output_path, 'w') as f:
         json.dump(results, f, indent=2)
-    logger.info(f"\nResults saved to {output_path}")
+    logger.info(f"Results saved to {output_path}")
 
     return results
 

@@ -43,6 +43,8 @@ app.add_middleware(
 app.include_router(recommend_router)
 app.include_router(interactions_router)
 app.include_router(auth_router)
+from api.routes.clothing import router as clothing_router
+app.include_router(clothing_router)
 
 
 # Dependency injection
@@ -143,6 +145,20 @@ def list_clothing(
         limit=limit,
         offset=offset
     )
+
+
+@app.get("/clothing/{clothing_id}/similar", response_model=List[Clothing])
+def get_similar_clothing(clothing_id: int, limit: int = 10):
+    """Get similar clothing items (same style/category)."""
+    service = get_clothing_service()
+    return service.get_similar(clothing_id, limit=limit)
+
+
+@app.get("/clothing/{clothing_id}/matching", response_model=List[Clothing])
+def get_matching_clothing(clothing_id: int, limit: int = 10):
+    """Get matching outfit items (can be worn together)."""
+    service = get_clothing_service()
+    return service.get_matching(clothing_id, limit=limit)
 
 
 if __name__ == "__main__":

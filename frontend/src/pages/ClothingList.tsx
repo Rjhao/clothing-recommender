@@ -226,6 +226,21 @@ const ClothingList: React.FC = () => {
     accessories: '👜',
   }
 
+  // 占位图(与后端 kg.image_url.resolve_image 一致):图片加载失败时回退到
+  // loremflickr 真实服装图(按类目关键词),避免空白方块。
+  const categoryPlaceholder = (category: string, id: number): string => {
+    const map: Record<string, string> = {
+      top: 'tshirt',
+      bottom: 'jeans',
+      dress: 'dress',
+      outerwear: 'jacket',
+      shoes: 'sneakers',
+      accessories: 'handbag',
+    }
+    const kw = map[category] || 'fashion'
+    return `https://loremflickr.com/400/500/${kw}?lock=${id}`
+  }
+
   // 价格区间标签
   const priceValue = priceRange
     ? priceRange[1] >= 99999
@@ -308,7 +323,8 @@ const ClothingList: React.FC = () => {
               }}
               onError={(e) => {
                 const target = e.target as HTMLImageElement
-                target.style.display = 'none'
+                target.onerror = null
+                target.src = categoryPlaceholder(item.category, item.id)
               }}
             />
           ) : (
@@ -370,7 +386,8 @@ const ClothingList: React.FC = () => {
                 }}
                 onError={(e) => {
                   const target = e.target as HTMLImageElement
-                  target.style.display = 'none'
+                  target.onerror = null
+                  target.src = categoryPlaceholder(item.category, item.id)
                 }}
               />
             ) : (

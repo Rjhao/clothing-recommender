@@ -1,0 +1,36 @@
+{
+  "_meta": {
+    "protocol": "sampled-100 leave-one-out, K in {5,10,20}",
+    "device": "cuda (RTX 5060 Laptop, sm_120), torch 2.11.0+cu128",
+    "hyperparams": {
+      "embedding_dim": 64, "n_hops": 2, "n_heads": 4, "n_layers": 2,
+      "epochs": 100, "batch_size": 256, "lr": 0.001, "weight_decay": 1e-4,
+      "lambda_cl": 0.1, "lambda_reg": 1e-4, "seed": 42
+    },
+    "data": {"users": 5360, "items": 4677, "train_inter": 30017, "val_inter": 5295, "test_users": 5295},
+    "notes": [
+      "multimodal off in all main experiments (per EXPERIMENT_PLAN)",
+      "improvement C (attention_explain) does NOT participate in forward/predict_score; only constructs module. M2(A+B) and M3(A+B+C) HR are expected equal.",
+      "improvement B uses feature-dropout approximation (NOT paper's graph edge-dropout two-view). Stage 3 will implement real edge-dropout — this is the key lever for HR."
+    ]
+  },
+  "ablation": {
+    "m0":   {"switches": {"a": 0, "b": 0, "c": 0}, "best_val_loss": 1.2062, "hr@5": 0.3484, "hr@10": 0.4047, "hr@20": 0.4856, "ndcg@5": 0.2854, "ndcg@10": 0.3036, "ndcg@20": 0.3238, "note": "baseline, GAT degraded (eye adj)"},
+    "m1":   {"switches": {"a": 1, "b": 0, "c": 0}, "best_val_loss": 1.1795, "hr@5": 0.3450, "hr@10": 0.4023, "hr@20": 0.4871, "ndcg@5": 0.2776, "ndcg@10": 0.2961, "ndcg@20": 0.3175, "note": "+A adaptive gate"},
+    "m2":   {"switches": {"a": 1, "b": 1, "c": 0}, "best_val_loss": 1.0943, "hr@5": 0.3460, "hr@10": 0.4072, "hr@20": 0.4874, "ndcg@5": 0.2771, "ndcg@10": 0.2968, "ndcg@20": 0.3171, "note": "+A+B (B=feature dropout approx)"},
+    "m3":   {"switches": {"a": 1, "b": 1, "c": 1}, "best_val_loss": 1.1320, "hr@5": 0.3496, "hr@10": 0.4043, "hr@20": 0.4827, "ndcg@5": 0.2831, "ndcg@10": 0.3009, "ndcg@20": 0.3205, "note": "full model A+B+C"},
+    "m3-a": {"switches": {"a": 0, "b": 1, "c": 1}, "best_val_loss": 1.4707, "hr@5": 0.3426, "hr@10": 0.4064, "hr@20": 0.4925, "ndcg@5": 0.2789, "ndcg@10": 0.2993, "ndcg@20": 0.3211, "note": "leave-one-out: drop A"},
+    "m3-b": {"switches": {"a": 1, "b": 0, "c": 1}, "best_val_loss": 1.1859, "hr@5": 0.3447, "hr@10": 0.4038, "hr@20": 0.4854, "ndcg@5": 0.2813, "ndcg@10": 0.3003, "ndcg@20": 0.3209, "note": "leave-one-out: drop B"}
+  },
+  "coldstart_m3": {
+    "model": "M3 (A+B+C, best_model)",
+    "cold_user_max": 5, "cold_item_max": 10,
+    "subsets": {
+      "all":        {"n": 5295, "hr@10": 0.4043, "ndcg@10": 0.3009},
+      "cold_user":  {"n": 2334, "hr@10": 0.4233, "ndcg@10": 0.3038, "note": "cold users BETTER than all -> adaptive gate works"},
+      "cold_item":  {"n": 1995, "hr@10": 0.0185, "ndcg@10": 0.0072, "note": "cold items collapse -> BPR-MF inherent weakness"},
+      "cold_both":  {"n": 903,  "hr@10": 0.0255, "ndcg@10": 0.0088}
+    }
+  },
+  "vs_paper": {"hr10_paper_target": 0.561, "hr10_best_stage2": 0.4072, "gap": 0.1538, "best_model": "M2"}
+}

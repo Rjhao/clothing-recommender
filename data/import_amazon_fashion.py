@@ -19,6 +19,7 @@ sys.path.insert(0, os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
 
 from data.crawler.washer import DataWasher
 from data.crawler.exporter import DataExporter
+from data.name_utils import build_unique_name
 
 logging.basicConfig(
     level=logging.INFO,
@@ -201,9 +202,16 @@ def process_products(df: pd.DataFrame) -> list:
         style = extract_style_from_text(row['category_code'], row.get('brand', ''))
         season = extract_season(row['category_code'])
 
+        # Amazon data has no product title, so category_code (e.g.
+        # "apparel.shoes.slipons") becomes the base name — which collides for
+        # many distinct items. Disambiguate with brand + #id_last4 so every name
+        # is unique. See data/name_utils.py and data/migrate_clothing_names.py.
+        base_name = str(row.get('category_code', row['product_id'])).replace('.', ' ').title()
+        brand = str(row['brand']) if pd.notna(row.get('brand')) else ''
+
         product = {
             'product_id': str(row['product_id']),
-            'name': str(row.get('category_code', row['product_id'])).replace('.', ' ').title(),
+            'name': build_unique_name(base_name, brand, row['product_id']),
             'category': category if category != 'unknown' else None,
             'category_code': str(row['category_code']),
             'brand': str(row['brand']) if pd.notna(row['brand']) else '',

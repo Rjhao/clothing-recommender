@@ -83,6 +83,19 @@ class ClothingGraphQuery:
     RETURN c
     """
 
+    # Cold-start fallback: popular clothing (by popularity, then price).
+    # Used when a user has no preferences / interactions in the graph yet.
+    # coalesce() so items missing popularity don't sort first on NULL.
+    FIND_POPULAR_CLOTHING = """
+    MATCH (c:Clothing)
+    WHERE ($category IS NULL OR c.category = $category)
+      AND NOT c.id IN $exclude_ids
+    RETURN c
+    ORDER BY coalesce(c.popularity, 0) DESC, c.price DESC
+    SKIP $offset
+    LIMIT $limit
+    """
+
     # Graph-based recommendation score
     # Uses correlated subqueries so each score is aggregated independently,
     # avoiding the cross-product that previously inflated sum()/count() per c.
@@ -95,8 +108,9 @@ class ClothingGraphQuery:
     }
     CALL {
       WITH u, c
-      MATCH (u)-[r:HAS_BODY_SHAPE]->(bs:BodyShape)<-[:HAS_BODY_SHAPE]-(c)
-      RETURN c, sum(r.score) AS body_match_score
+      MATCH (u)-[r:HAS_BODY_SHAPE]->(bs:BodyShape)
+      WHERE (c)-[:HAS_BODY_SHAPE]->(bs)
+      RETURN sum(r.score) AS body_match_score
     }
     CALL {
       WITH c
@@ -251,6 +265,32 @@ class ClothingGraphQuery:
                 item = dict(record['c'])
                 # Neo4j may store id as integer
                 item['id'] = item.get('id', 0)
+                items.append(item)
+            result.consume()
+            return items
+
+    def find_popular_clothing(
+        self,
+        limit: int = 20,
+        exclude_ids: Optional[set] = None,
+        category: Optional[str] = None,
+        offset: int = 0,
+    ) -> List[dict]:
+        """Find popular clothing (cold-start fallback when a user has no graph
+        profile). Returns clothing dicts ordered by popularity then price."""
+        with self.driver.session() as session:
+            result = session.run(
+                self.FIND_POPULAR_CLOTHING,
+                category=category,
+                exclude_ids=list(exclude_ids or []),
+                offset=offset,
+                limit=limit,
+            )
+            items = []
+            for record in result:
+                item = dict(record['c'])
+                if 'id' not in item:
+                    item['id'] = item.get('product_id', 0)
                 items.append(item)
             result.consume()
             return items

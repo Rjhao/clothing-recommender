@@ -4,6 +4,7 @@ import numpy as np
 from datetime import datetime
 
 from kg.graph.query import ClothingGraphQuery
+from kg.image_url import resolve_image
 
 
 class HybridRecommender:
@@ -80,13 +81,33 @@ class HybridRecommender:
         )[:limit]
 
         # Build scores dict for _fetch_clothing_details
+        rec_ids = [clothing_id for clothing_id, _ in sorted_recs]
         scores_dict = {cid: score for cid, score in sorted_recs}
 
+        # Cold-start / fill: if not enough personalized recs, top up with popular items.
+        # Handles brand-new users (no graph profile) and users with sparse data alike.
+        if len(rec_ids) < limit:
+            exclude = user_history | set(rec_ids)
+            popular = self.graph_query.find_popular_clothing(
+                limit=limit * 2, exclude_ids=exclude, category=category
+            )
+            for item in popular:
+                raw = item.get('id')
+                if raw is None:
+                    raw = item.get('product_id')
+                try:
+                    cid = int(raw)
+                except (TypeError, ValueError):
+                    continue
+                if cid in scores_dict:
+                    continue
+                rec_ids.append(cid)
+                scores_dict[cid] = 1.0
+                if len(rec_ids) >= limit:
+                    break
+
         # Fetch full clothing details
-        return self._fetch_clothing_details(
-            [clothing_id for clothing_id, _ in sorted_recs],
-            scores=scores_dict
-        )
+        return self._fetch_clothing_details(rec_ids[:limit], scores=scores_dict)
 
     def _get_kg_recommendations(
         self,
@@ -233,7 +254,7 @@ class HybridRecommender:
                 "price": item.get('price', 0),
                 "style": style,
                 "season": item.get('season', ''),
-                "image_url": item.get('image_url'),
+                "image_url": resolve_image(item),
                 "score": score,
                 "reason": " | ".join(reasons) if reasons else "个性化推荐"
             })

@@ -32,6 +32,7 @@ class AdaptiveGate(nn.Module):
         kg_dim: int = 64,
         mm_dim: int = 64,
         hidden_dim: int = 32,
+        output_dim: Optional[int] = None,
         use_confidence: bool = True,
         use_interaction_count: bool = True,
     ):
@@ -40,9 +41,12 @@ class AdaptiveGate(nn.Module):
 
         Args:
             cf_dim: CF feature dimension
-            kg_dim: KG feature dimension
-            mm_dim: MM feature dimension
+            kg_dim: KG feature dimension (runtime = embedding_dim * n_hops)
+            mm_dim: MM feature dimension (always embedding_dim; zeros when off)
             hidden_dim: Hidden dimension for gate network
+            output_dim: Unified output dimension for fused representation.
+                Defaults to cf_dim. All three modality processors project to
+                this dimension so the weighted sum is well-defined.
             use_confidence: Whether to use confidence scores
             use_interaction_count: Whether to use interaction counts
         """
@@ -52,6 +56,7 @@ class AdaptiveGate(nn.Module):
         self.kg_dim = kg_dim
         self.mm_dim = mm_dim
         self.hidden_dim = hidden_dim
+        self.output_dim = output_dim if output_dim is not None else cf_dim
         self.use_confidence = use_confidence
         self.use_interaction_count = use_interaction_count
 
@@ -65,23 +70,24 @@ class AdaptiveGate(nn.Module):
             nn.Linear(hidden_dim, 3),  # 3 gates: CF, KG, MM
         )
 
-        # Modality-specific processors
+        # Modality-specific processors — all project to output_dim so the
+        # weighted fusion sums tensors of the same shape.
         self.cf_processor = nn.Sequential(
             nn.Linear(cf_dim, hidden_dim),
             nn.ReLU(),
-            nn.Linear(hidden_dim, cf_dim),
+            nn.Linear(hidden_dim, self.output_dim),
         )
 
         self.kg_processor = nn.Sequential(
             nn.Linear(kg_dim, hidden_dim),
             nn.ReLU(),
-            nn.Linear(hidden_dim, kg_dim),
+            nn.Linear(hidden_dim, self.output_dim),
         )
 
         self.mm_processor = nn.Sequential(
             nn.Linear(mm_dim, hidden_dim),
             nn.ReLU(),
-            nn.Linear(hidden_dim, mm_dim),
+            nn.Linear(hidden_dim, self.output_dim),
         )
 
         # Interaction count embedding (for cold start detection)
@@ -208,6 +214,7 @@ class AdaptiveGateModule(nn.Module):
         kg_dim: int = 64,
         mm_dim: int = 64,
         hidden_dim: int = 32,
+        output_dim: Optional[int] = None,
     ):
         """
         Initialize Adaptive Gate Module.
@@ -217,6 +224,7 @@ class AdaptiveGateModule(nn.Module):
             kg_dim: KG feature dimension
             mm_dim: MM feature dimension
             hidden_dim: Hidden dimension for gate network
+            output_dim: Unified output dimension (defaults to cf_dim)
         """
         super().__init__()
 
@@ -225,6 +233,7 @@ class AdaptiveGateModule(nn.Module):
             kg_dim=kg_dim,
             mm_dim=mm_dim,
             hidden_dim=hidden_dim,
+            output_dim=output_dim,
             use_confidence=True,
             use_interaction_count=True,
         )

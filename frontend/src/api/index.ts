@@ -75,6 +75,7 @@ export interface TryOnResult {
   result_id: string
   result_url: string
   explanation: string
+  backend?: string
 }
 
 export interface UploadedImage {
@@ -128,7 +129,8 @@ export const userAPI = {
     if (category) params.append('category', category)
 
     const response = await api.get(`/recommend/${userId}`, { params })
-    return response.data
+    // Backend returns { user_id, count, recommendations: [...] } — unwrap to the array.
+    return response.data.recommendations || []
   },
 
   getSimilarItems: async (userId: number, clothingId: number, limit = 10) => {
@@ -156,6 +158,16 @@ export const clothingAPI = {
     offset?: number
   }): Promise<ClothingItem[]> => {
     const response = await api.get('/clothing/', { params })
+    return response.data
+  },
+
+  getHot: async (params?: { category?: string; limit?: number }): Promise<ClothingItem[]> => {
+    const response = await api.get('/clothing/hot', { params })
+    return response.data
+  },
+
+  getNew: async (params?: { category?: string; limit?: number }): Promise<ClothingItem[]> => {
+    const response = await api.get('/clothing/new', { params })
     return response.data
   },
 
@@ -258,11 +270,13 @@ export const tryonAPI = {
 
   generateTryOn: async (
     personImageId: string,
-    clothImageId: string
+    clothImageId: string,
+    category: string = 'top'
   ): Promise<TryOnResult> => {
     const response = await tryonApi.post('/tryon', {
       person_image_id: personImageId,
       cloth_image_id: clothImageId,
+      category,
     })
     return response.data
   },

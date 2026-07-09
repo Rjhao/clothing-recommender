@@ -6,6 +6,7 @@ from typing import List, Optional
 from api.database import get_neo4j_driver
 from api.services.recommendation import RecommendationService
 from api.services.user_profile import UserProfileService
+from api.routes.clothing import _normalize
 
 logger = logging.getLogger(__name__)
 router = APIRouter(prefix="/recommend", tags=["recommendations"])
@@ -28,7 +29,8 @@ def get_recommendations(
     user_id: int,
     category: Optional[str] = Query(None, description="Filter by category"),
     limit: int = Query(10, ge=1, le=50, description="Number of recommendations"),
-    exclude_viewed: bool = Query(True, description="Exclude already viewed items")
+    exclude_viewed: bool = Query(True, description="Exclude already viewed items"),
+    exclude_ids: str = Query("", description="逗号分隔的 id 列表,推荐结果排除这些(避免与 hot/new 重复)"),
 ):
     """
     Get personalized recommendations for a user.
@@ -38,16 +40,53 @@ def get_recommendations(
     """
     service = get_recommendation_service()
     try:
+        # 解析 exclude_ids
+        exclude_set = set()
+        if exclude_ids:
+            for x in exclude_ids.split(","):
+                try:
+                    exclude_set.add(int(x))
+                except ValueError:
+                    pass
         recommendations = service.recommend(
             user_id=user_id,
             category=category,
-            limit=limit,
+            limit=limit * 4,  # 多取,过滤后保留 limit(去重后可能不够)
             exclude_viewed=exclude_viewed
         )
+        # 排除 exclude_ids
+        if exclude_set:
+            recommendations = [r for r in recommendations if r.get("id") not in exclude_set and r.get("clothing_id") not in exclude_set]
+        # 按品牌去重(每个品牌最多 1 件,让 6 件品牌更多样)
+        seen_brands = set()
+        deduped = []
+        for r in recommendations:
+            brand = r.get("brand") or "_none_"
+            if brand in seen_brands:
+                continue
+            seen_brands.add(brand)
+            deduped.append(r)
+            if len(deduped) >= limit:
+                break
+        recommendations = deduped
+        # 如果按品牌去重后不够,补全(不严格去重)
+        if len(recommendations) < limit:
+            seen_ids = {r.get("id") for r in recommendations}
+            for r in original_recs if 'original_recs' in dir() else recommendations:
+                pass  # 简化:不再补,保持多样性
+        recommendations = recommendations[:limit]
+        # 过 _normalize: 统一图片(本地 fallback)、价格(0 元兜底)、名字(去 "Apparel XXX")
+        normalized = []
+        for item in recommendations:
+            # 构造 _normalize 期待的 dict(字段名 + score + reason 保留)
+            n = _normalize(item)
+            n["score"] = item.get("score", 0.0)
+            n["reason"] = item.get("reason", "")
+            normalized.append(n)
         return {
             "user_id": user_id,
-            "count": len(recommendations),
-            "recommendations": recommendations
+            "count": len(normalized),
+            "recommendations": normalized
         }
     except Exception:
         logger.exception("Recommendation failed for user %s", user_id)

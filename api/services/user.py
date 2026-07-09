@@ -1,4 +1,5 @@
 """User service for managing users."""
+import bcrypt
 from typing import Optional
 from datetime import datetime
 from sqlalchemy.orm import Session
@@ -59,5 +60,23 @@ class UserService:
         plain_password: str,
         hashed_password: str
     ) -> bool:
-        """Verify a password against its hash."""
-        return pwd_context.verify(plain_password, hashed_password)
+        """Verify a password against its hash.
+
+        Supports two hash formats for backwards compatibility:
+        - bcrypt ($2b$ / $2a$ prefix): demo / testuser99 accounts reset via direct bcrypt
+        - sha256_crypt ($5$ prefix): original accounts hashed by passlib
+        """
+        # bcrypt 格式 ($2a$ / $2b$ / $2y$)
+        if hashed_password.startswith(("$2a$", "$2b$", "$2y$")):
+            try:
+                return bcrypt.checkpw(
+                    plain_password.encode("utf-8"),
+                    hashed_password.encode("utf-8"),
+                )
+            except Exception:
+                return False
+        # sha256_crypt / 其他 passlib 格式
+        try:
+            return pwd_context.verify(plain_password, hashed_password)
+        except Exception:
+            return False

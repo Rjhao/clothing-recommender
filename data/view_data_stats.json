@@ -1,0 +1,34 @@
+{
+  "total_rows_scanned": 369260972,
+  "fashion_rows": 50103800,
+  "kept_event_rows": 50103800,
+  "event_counts": {
+    "view": 47824722,
+    "purchase": 526220,
+    "cart": 1752858
+  },
+  "n_users": 1429845,
+  "n_products": 94564,
+  "n_interactions": 22283569,
+  "density": 0.000165,
+  "user_interactions": {
+    "mean": 15.589577891309897,
+    "median": 10.0,
+    "p90": 30.0,
+    "max": 8505,
+    "min": 5
+  },
+  "item_interactions": {
+    "mean": 235.645372446174,
+    "median": 40.0,
+    "p90": 472.6999999999971,
+    "max": 108243,
+    "min": 2
+  },
+  "weighted_strength": {
+    "mean": 1.9998687373642885,
+    "median": 1.0,
+    "p90": 3.0,
+    "max": 3048
+  }
+}

@@ -3,6 +3,93 @@ import { Spin, Radio } from 'antd'
 import * as THREE from 'three'
 import { GLTFLoader } from 'three/addons/loaders/GLTFLoader.js'
 
+// === Programmatic clothing geometry (used when no GLB provided) ===
+// 用 Three.js 几何体程序化生成精细的 T 恤 + 裤子(比 BoxGeometry 强 10 倍)
+// 仅生成 1 套 T 恤 + 1 条裤子(固定,用于演示 + 论文截图)
+function buildProgrammaticClothing(
+  category: 'top' | 'bottom',
+  color: number = 0x4a90e2,
+): THREE.Group {
+  const group = new THREE.Group()
+  const material = new THREE.MeshStandardMaterial({
+    color,
+    roughness: 0.75,
+    metalness: 0.0,
+    side: THREE.DoubleSide,
+  })
+  if (category === 'top') {
+    // T 恤:身体 = 略收口的圆柱(用 LatheGeometry 沿垂直轴旋转一个轮廓,模拟衣身)
+    // + 两个袖子 = 圆柱
+    // 衣身:用 LatheGeometry 模拟一个轮廓(衣领到衣摆)
+    const points: THREE.Vector2[] = []
+    // 上窄下宽,模拟 T 恤轮廓(从 y=0.3 衣领到 y=-0.3 衣摆)
+    points.push(new THREE.Vector2(0.05, 0.32))  // 衣领
+    points.push(new THREE.Vector2(0.18, 0.28))  // 肩
+    points.push(new THREE.Vector2(0.22, 0.10))  // 胸
+    points.push(new THREE.Vector2(0.20, -0.10)) // 腰
+    points.push(new THREE.Vector2(0.24, -0.30)) // 衣摆(略宽)
+    const body = new THREE.Mesh(
+      new THREE.LatheGeometry(points, 24),
+      material,
+    )
+    body.castShadow = true
+    group.add(body)
+    // 衣领开口(顶部小圆环)
+    const collarRing = new THREE.Mesh(
+      new THREE.TorusGeometry(0.08, 0.015, 8, 24),
+      new THREE.MeshStandardMaterial({ color: 0xffffff, roughness: 0.7 }),
+    )
+    collarRing.position.y = 0.32
+    collarRing.rotation.x = Math.PI / 2
+    group.add(collarRing)
+    // 袖子:两个略斜的圆柱
+    const sleeveGeo = new THREE.CylinderGeometry(0.06, 0.07, 0.28, 12)
+    const sleeveL = new THREE.Mesh(sleeveGeo, material)
+    sleeveL.position.set(-0.26, 0.18, 0)
+    sleeveL.rotation.z = 0.3
+    sleeveL.castShadow = true
+    group.add(sleeveL)
+    const sleeveR = new THREE.Mesh(sleeveGeo, material)
+    sleeveR.position.set(0.26, 0.18, 0)
+    sleeveR.rotation.z = -0.3
+    sleeveR.castShadow = true
+    group.add(sleeveR)
+    // 位置:对齐 VRM 躯干
+    group.position.set(0, 0.05, 0)
+  } else if (category === 'bottom') {
+    // 裤子:两个分腿的圆柱 + 腰带
+    // 腰带
+    const belt = new THREE.Mesh(
+      new THREE.CylinderGeometry(0.20, 0.20, 0.05, 16),
+      new THREE.MeshStandardMaterial({ color: 0x2c3e50, roughness: 0.6 }),
+    )
+    belt.position.set(0, -0.30, 0)
+    belt.castShadow = true
+    group.add(belt)
+    // 腿:两个圆柱(略张开)
+    const legGeo = new THREE.CylinderGeometry(0.08, 0.07, 0.45, 12)
+    const legL = new THREE.Mesh(legGeo, material)
+    legL.position.set(-0.07, -0.55, 0)
+    legL.castShadow = true
+    group.add(legL)
+    const legR = new THREE.Mesh(legGeo, material)
+    legR.position.set(0.07, -0.55, 0)
+    legR.castShadow = true
+    group.add(legR)
+    // 裤脚
+    const cuffGeo = new THREE.CylinderGeometry(0.085, 0.085, 0.04, 12)
+    const cuffL = new THREE.Mesh(cuffGeo, material)
+    cuffL.position.set(-0.07, -0.78, 0)
+    group.add(cuffL)
+    const cuffR = new THREE.Mesh(cuffGeo, material)
+    cuffR.position.set(0.07, -0.78, 0)
+    group.add(cuffR)
+    // 位置:对齐 VRM 腿部
+    group.position.set(0, 0.0, 0)
+  }
+  return group
+}
+
 interface ClothingSet {
   top?: string
   bottom?: string
@@ -19,10 +106,11 @@ interface Props {
   onGenderChange?: (gender: 'male' | 'female') => void
 }
 
-// 模型URL - 都用VRM女性模型，男性只是缩小一点
+// VRM 模型 URL - 本地化,加载快且不依赖外网
+// (原 GitHub raw URL 慢且易失败,改用 public/models/ 本地资源)
 const MODEL_URLS = {
-  female: 'https://raw.githubusercontent.com/pixiv/three-vrm/dev/packages/three-vrm/examples/models/VRM1_Constraint_Twist_Sample.vrm',
-  male: 'https://raw.githubusercontent.com/pixiv/three-vrm/dev/packages/three-vrm/examples/models/VRM1_Constraint_Twist_Sample.vrm',
+  female: '/models/vrm_sample.vrm',
+  male: '/models/vrm_sample.vrm',
 }
 
 const ThreeDClothViewer: React.FC<Props> = ({
@@ -348,89 +436,121 @@ const ThreeDClothViewer: React.FC<Props> = ({
 
     if (Object.keys(clothing).length === 0) return
 
-    // Create clothing group
+    // Create clothing group (支持 3 种来源:程序化生成 / GLB 加载 / 老图片贴图)
     const clothingGroup = new THREE.Group()
-    const textureLoader = new THREE.TextureLoader()
+    const glbLoader = new GLTFLoader()
 
-    const createClothingMesh = (
-      imgUrl: string,
-      geometry: THREE.BufferGeometry,
-      position: THREE.Vector3,
-      rotation?: THREE.Euler
-    ) => {
-      textureLoader.load(
-        imgUrl,
-        (texture) => {
-          texture.colorSpace = THREE.SRGBColorSpace
-          const material = new THREE.MeshStandardMaterial({
-            map: texture,
-            transparent: true,
-            side: THREE.DoubleSide,
-            roughness: 0.8,
+    // 判断 clothing 值类型
+    const isGlb = (url: string) => url.endsWith('.glb') || url.endsWith('.gltf')
+    const isProgrammatic = (url: string) => url.startsWith('__programmatic_')
+
+    const loadClothingGlb = (glbUrl: string, category: string) => {
+      glbLoader.load(
+        glbUrl,
+        (gltf) => {
+          const clothModel = gltf.scene
+          // 启用阴影 + 调整比例(根据人偶身材,约 0.8-1.0)
+          clothModel.scale.set(1.0, 1.0, 1.0)
+          clothModel.traverse((obj: any) => {
+            if (obj.isMesh) {
+              obj.castShadow = true
+              obj.receiveShadow = true
+              // 提升材质质感
+              if (obj.material) {
+                if (Array.isArray(obj.material)) {
+                  obj.material.forEach((m: any) => {
+                    m.roughness = 0.7
+                    m.metalness = 0.0
+                  })
+                } else {
+                  obj.material.roughness = 0.7
+                  obj.material.metalness = 0.0
+                }
+              }
+            }
           })
-          const mesh = new THREE.Mesh(geometry, material)
-          mesh.position.copy(position)
-          if (rotation) mesh.rotation.copy(rotation)
-          mesh.castShadow = true
-          clothingGroup.add(mesh)
+          // 类别位置微调(对齐人偶的不同身体部位)
+          const isMale = gender === 'male'
+          const posMap: Record<string, THREE.Vector3> = {
+            top: new THREE.Vector3(0, isMale ? 0.3 : 0.25, 0),
+            bottom: new THREE.Vector3(0, -0.25, 0),
+            dress: new THREE.Vector3(0, 0, 0),
+            outerwear: new THREE.Vector3(0, isMale ? 0.25 : 0.22, 0),
+          }
+          if (posMap[category]) {
+            clothModel.position.copy(posMap[category])
+          }
+          clothingGroup.add(clothModel)
         },
         undefined,
-        () => {
-          // Fallback colored material
-          const material = new THREE.MeshStandardMaterial({
-            color: 0x888888,
-            transparent: true,
-            side: THREE.DoubleSide,
-            roughness: 0.8,
-          })
-          const mesh = new THREE.Mesh(geometry, material)
-          mesh.position.copy(position)
-          if (rotation) mesh.rotation.copy(rotation)
-          mesh.castShadow = true
-          clothingGroup.add(mesh)
+        (err) => {
+          console.error(`[clothing ${category}] GLB 加载失败:`, glbUrl, err)
+          // 加载失败:占位 BoxGeometry + 灰色(避免空白)
+          const fallback = new THREE.Mesh(
+            new THREE.BoxGeometry(0.4, 0.4, 0.2),
+            new THREE.MeshStandardMaterial({ color: 0xcccccc, roughness: 0.8 })
+          )
+          fallback.castShadow = true
+          clothingGroup.add(fallback)
         }
       )
     }
 
-    // Top (shirt) - 根据性别调整位置
-    if (clothing.top) {
-      const isMale = gender === 'male'
-      const topGeo = new THREE.BoxGeometry(0.35, 0.3, 0.2)
-      const topPos = new THREE.Vector3(0, isMale ? 0.3 : 0.25, 0)
-      createClothingMesh(clothing.top, topGeo, topPos)
-
-      const sleeveGeo = new THREE.CylinderGeometry(0.06, 0.08, 0.18, 12)
-      const leftSleevePos = new THREE.Vector3(isMale ? -0.28 : -0.24, isMale ? 0.35 : 0.3, 0)
-      const leftSleeveRot = new THREE.Euler(0, 0, 0.5)
-      createClothingMesh(clothing.top, sleeveGeo, leftSleevePos, leftSleeveRot)
-
-      const rightSleevePos = new THREE.Vector3(isMale ? 0.28 : 0.24, isMale ? 0.35 : 0.3, 0)
-      const rightSleeveRot = new THREE.Euler(0, 0, -0.5)
-      createClothingMesh(clothing.top, sleeveGeo, rightSleevePos, rightSleeveRot)
-    }
-
-    // Bottom
-    if (clothing.bottom) {
-      const isMale = gender === 'male'
-      const bottomGeo = new THREE.BoxGeometry(0.3, 0.4, 0.2)
-      const bottomPos = new THREE.Vector3(0, isMale ? -0.25 : -0.25, 0)
-      createClothingMesh(clothing.bottom, bottomGeo, bottomPos)
-    }
-
-    // Dress
-    if (clothing.dress) {
-      const dressGeo = new THREE.CylinderGeometry(0.18, 0.3, 0.6, 12)
-      const dressPos = new THREE.Vector3(0, 0, 0)
-      createClothingMesh(clothing.dress, dressGeo, dressPos)
-    }
-
-    // Outerwear
-    if (clothing.outerwear) {
-      const isMale = gender === 'male'
-      const outerGeo = new THREE.BoxGeometry(0.4, 0.32, 0.25)
-      const outerPos = new THREE.Vector3(0, isMale ? 0.25 : 0.22, 0)
-      createClothingMesh(clothing.outerwear, outerGeo, outerPos)
-    }
+    // 按类别加载(优先级:程序化生成 / GLB / 老图片贴图)
+    ;(['top', 'bottom', 'dress', 'outerwear'] as const).forEach((cat) => {
+      const url = clothing[cat]
+      if (!url) return
+      if (isProgrammatic(url)) {
+        // 程序化生成(默认演示用,无外部资源依赖)
+        const color = url.includes('pants') ? 0x2c3e50 : 0x4a90e2
+        const clothModel = buildProgrammaticClothing(
+          (cat === 'top' || cat === 'outerwear') ? 'top' : 'bottom',
+          color,
+        )
+        clothingGroup.add(clothModel)
+      } else if (isGlb(url)) {
+        loadClothingGlb(url, cat)
+      } else {
+        // 老格式(图片 URL)用 BoxGeometry + 贴图,作为 fallback
+        const isMale = gender === 'male'
+        const geoMap: Record<string, THREE.BufferGeometry> = {
+          top: new THREE.BoxGeometry(0.35, 0.3, 0.2),
+          bottom: new THREE.BoxGeometry(0.3, 0.4, 0.2),
+          dress: new THREE.CylinderGeometry(0.18, 0.3, 0.6, 12),
+          outerwear: new THREE.BoxGeometry(0.4, 0.32, 0.25),
+        }
+        const posMap: Record<string, THREE.Vector3> = {
+          top: new THREE.Vector3(0, isMale ? 0.3 : 0.25, 0),
+          bottom: new THREE.Vector3(0, -0.25, 0),
+          dress: new THREE.Vector3(0, 0, 0),
+          outerwear: new THREE.Vector3(0, isMale ? 0.25 : 0.22, 0),
+        }
+        const texLoader = new THREE.TextureLoader()
+        texLoader.load(
+          url,
+          (tex) => {
+            tex.colorSpace = THREE.SRGBColorSpace
+            const mat = new THREE.MeshStandardMaterial({
+              map: tex, transparent: true, side: THREE.DoubleSide, roughness: 0.8,
+            })
+            const mesh = new THREE.Mesh(geoMap[cat], mat)
+            mesh.position.copy(posMap[cat])
+            mesh.castShadow = true
+            clothingGroup.add(mesh)
+          },
+          undefined,
+          () => {
+            const mat = new THREE.MeshStandardMaterial({
+              color: 0x888888, transparent: true, side: THREE.DoubleSide, roughness: 0.8,
+            })
+            const mesh = new THREE.Mesh(geoMap[cat], mat)
+            mesh.position.copy(posMap[cat])
+            mesh.castShadow = true
+            clothingGroup.add(mesh)
+          }
+        )
+      }
+    })
 
     clothingGroupRef.current = clothingGroup
     sceneRef.current.add(clothingGroup)

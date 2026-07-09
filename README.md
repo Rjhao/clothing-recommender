@@ -19,6 +19,7 @@
 | 第五阶段 | 搭配推荐页 | P1 | ✅ 完成 |
 | 第六阶段 | 用户中心 | P1 | ✅ 完成 |
 | 第七阶段 | AI虚拟试穿 | P0 | ✅ 完成 |
+| 第八阶段 | 商品名去重 + 虚拟试穿落地 | P0 | ✅ 完成 |
 
 ---
 
@@ -68,6 +69,31 @@
     - [x] 服装选择
     - [x] 虚拟试穿预览
     - [x] 性别切换
+
+---
+
+#### ✅ 已完成：第八阶段 - 商品名去重 + 虚拟试穿落地（2026-07-05）
+
+> 针对「商品名大量重复」与「虚拟试穿未真正落地」两个遗留问题。
+
+**任务 #8 商品名去重** - 任务 #8 ✅
+- [x] 迁移脚本 `data/migrate_clothing_names.py`（幂等）：重算 `name = (brand + ' ' + 原 name + ' #' + id 后 4 位)`
+- [x] 抽取共享函数 `data/name_utils.py`（`build_unique_name` / `is_name_migrated` / `extend_suffix`），供迁移脚本与导入脚本共用
+- [x] 同步 `data/import_amazon_fashion.py:206`，让重新导入也用新格式
+- [x] 抽检 4872 件 name 唯一性：迁移前 4872 件仅 25 个不同 name（最多 820 件同名「Apparel Shoes」）；迁移后 4872 件 4872 个不同 name，0 重复，重跑 0 写入（真幂等）
+
+**任务 #9 虚拟试穿落地（MediaPipe 改进贴图）** - 任务 #9 ✅
+- [x] 安装 `mediapipe` 0.10.35（win `py3-none` wheel，兼容 Python 3.14）
+- [x] 后端 `tryon_api.py` 重写 `run_acgpn_tryon`：MediaPipe Pose 关键点定位肩/髋/脚 → 按肩宽自适应缩放 + 躯干倾角旋转 + GrabCut 抠图 + 类别感知定位 + alpha 羽化；检测不到人体时回退固定比例
+- [x] `TryOnRequest` 增加可选 `category` 字段（top/bottom/dress/outerwear/shoes/accessories，默认 top），非法值返回 400
+- [x] 前端 `VirtualTryOn.tsx` 接入已封装的 `tryonAPI`：上传真人照/选默认照 → 选衣 → 调 `/tryon` → 显示结果图，替换原 mock（保留 3D 形象为次要 Tab）
+- [x] 用 `static/test/{person,cloth}.jpg` 验证效果：5 个 category 全走 `mediapipe` backend；端到端（上传→试穿→取图）通过；纯色无人体图正确回退 `fallback`
+
+**方案变更说明（最终落地）**：
+- 原计划 ACGPN 全套流水线——`checkpoints/` 仅含 `label2city` refine 权重，缺 GMM/TOM/SCHP/OpenPose，且依赖老版 torch，配极易失败 → 弃用，改 MediaPipe + OpenCV 贴图。
+- **mediapipe 0.10.35 实测**：win wheel 能装但**不含 `mediapipe.solutions`**（精简版），改用 **Tasks API**（`PoseLandmarker`），需下载 `pose_landmarker_lite.task` 模型（5.5MB，存于 `static/models/`）。
+- mediapipe 依赖 `opencv-contrib-python`，与已装的 `opencv-python` 5.0.0.93 冲突 → 卸载前者、装同版本 `opencv-contrib-python`（cv2 仍 5.0.0，API 一致）。
+- 详见 `TRYON_SETUP.md`。
 
 ---
 
@@ -270,10 +296,11 @@ clothing-recommender/
 - 无
 
 ### ⏳ 待开发
-- [ ] AI虚拟试穿（ACGPN）- 后端推理服务
 - [ ] 评价功能
 - [ ] 社交分享
 - [ ] AR预览
+
+> 注：AI 虚拟试穿已落地——`tryon_api.py` 用 MediaPipe Pose（Tasks API）关键点定位 + 类别感知贴图（肩宽缩放 / 躯干旋转 / GrabCut 抠图 / alpha 羽化），前端 `VirtualTryOn.tsx` 真实调 `/tryon`；商品名已去重为唯一。详见「开发计划 → 第八阶段」与更新日志 2026-07-05。
 
 ---
 
@@ -344,6 +371,29 @@ ACCESS_TOKEN_EXPIRE_MINUTES=30
 ---
 
 ## 更新日志
+
+### 2026-07-05 商品名去重 + 虚拟试穿落地（完成）
+
+针对两个遗留问题制定并开始执行修复计划，详见「开发计划 → 第八阶段」。
+
+**一、问题诊断**
+- 商品名重复：数据源 `2019-Oct.csv` 无商品标题字段，导入时用 `category_code`（如 `apparel.shoes.slipons`）当 name，致 820 件同名「Apparel Shoes」。Neo4j 已有 `brand`/`id` 可拼唯一名。
+- 虚拟试穿双层断开：后端 `tryon_api.py` 因 ACGPN 缺 GMM/TOM/SCHP/OpenPose 全套权重，已退化为固定比例 OpenCV 贴图；前端 `VirtualTryOn.tsx` 是纯 mock（硬编码 Unsplash 图 + setTimeout 假装「试穿成功」），未调已封装的 `tryonAPI`。
+
+**二、修复方案**
+1. 商品名：迁移脚本 `data/migrate_clothing_names.py` 幂等重算 `name = (brand + ' ' + 原 name + ' #' + id 后 4 位)`；同步 `import_amazon_fashion.py:206`。
+2. 试穿后端：`pip install mediapipe`（0.10.35，cp314 wheel 已验证）；重写 `run_acgpn_tryon` 用 MediaPipe Pose 关键点定位肩/髋/脚 → 按肩宽自适应缩放 + 躯干倾角旋转 + GrabCut 抠图 + 类别感知定位 + alpha 羽化；`TryOnRequest` 加可选 `category` 字段；检测不到人体时回退固定比例。
+3. 试穿前端：`VirtualTryOn.tsx` 接入 `tryonAPI`，上传真人照 → 选衣 → 调 `/tryon` → 显示结果图，替换 mock，保留 3D 形象为次要预览。
+
+**三、环境约束**
+- Python 3.14.6；torch 2.12.1+cpu、cv2 5.0.0（已换为 `opencv-contrib-python` 5.0.0.93，mediapipe 依赖）。
+- mediapipe 0.10.35：win `py3-none` wheel 可装于 3.14，但**不含 `solutions` 子模块** → 用 Tasks API（`PoseLandmarker`），需 `static/models/pose_landmarker_lite.task`（5.5MB）。
+- 不补 ACGPN 全套权重（依赖老 torch、配极易失败、CPU 慢）；不换 CatVTON/OOTDiffusion（无 GPU）。
+
+**四、完成结果**
+- 商品名：迁移脚本一次跑完，4872 件 name 全部唯一（迁移前 25 个不同 name、最多 820 件同名；迁移后 0 重复），重跑 0 写入（真幂等）；29 个 id 后4位碰撞组自动加宽后缀解决。
+- 虚拟试穿后端：5 个 category 全走 `mediapipe` backend；端到端（上传→`/tryon`→取图）通过；非法 category 返回 400；纯色无人体图正确回退 `fallback`。
+- 虚拟试穿前端：`tsc --noEmit` 零错误；真人试穿 Tab 接入 `tryonAPI`，3D 形象保留为次要 Tab。
 
 ### 2026-07-05
 

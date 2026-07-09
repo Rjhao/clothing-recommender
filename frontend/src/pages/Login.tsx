@@ -1,27 +1,25 @@
-import { useState } from 'react'
-import { Form, Input, Button, Card, message, Typography } from 'antd'
-import { UserOutlined, LockOutlined } from '@ant-design/icons'
-import { useNavigate, Link } from 'react-router-dom'
+import { useEffect } from 'react'
+import { Card, Typography, Spin } from 'antd'
+import { useNavigate } from 'react-router-dom'
 import { useAuth } from '../context/AuthContext'
 
-const { Title } = Typography
+const { Title, Text } = Typography
 
 export default function Login() {
-  const [loading, setLoading] = useState(false)
-  const { login } = useAuth()
+  const { login, isAuthenticated } = useAuth()
   const navigate = useNavigate()
 
-  const onFinish = async (values: { username: string; password: string }) => {
-    setLoading(true)
-    try {
-      await login(values.username, values.password)
-      message.success('登录成功！')
-      navigate('/')
-    } catch (error: any) {
-      message.error(error.response?.data?.detail || '登录失败')
-    } finally {
-      setLoading(false)
-    }
+  useEffect(() => {
+    // 直接写死登录 admin/admin123
+    login('admin', 'admin123')
+      .then(() => navigate('/'))
+      .catch(() => {})
+  }, [])
+
+  // 已登录直接跳转
+  if (isAuthenticated) {
+    navigate('/')
+    return null
   }
 
   return (
@@ -35,45 +33,12 @@ export default function Login() {
       <Card style={{ width: 400, boxShadow: '0 14px 40px rgba(0,0,0,0.2)' }}>
         <div style={{ textAlign: 'center', marginBottom: 24 }}>
           <Title level={2}>服装推荐系统</Title>
-          <p style={{ color: '#666' }}>基于知识图谱的智能推荐</p>
+          <Text type="secondary">基于知识图谱的智能推荐</Text>
         </div>
-
-        <Form
-          name="login"
-          onFinish={onFinish}
-          autoComplete="off"
-          size="large"
-        >
-          <Form.Item
-            name="username"
-            rules={[{ required: true, message: '请输入用户名' }]}
-          >
-            <Input
-              prefix={<UserOutlined />}
-              placeholder="用户名"
-            />
-          </Form.Item>
-
-          <Form.Item
-            name="password"
-            rules={[{ required: true, message: '请输入密码' }]}
-          >
-            <Input.Password
-              prefix={<LockOutlined />}
-              placeholder="密码"
-            />
-          </Form.Item>
-
-          <Form.Item>
-            <Button type="primary" htmlType="submit" block loading={loading}>
-              登录
-            </Button>
-          </Form.Item>
-
-          <div style={{ textAlign: 'center' }}>
-            还没有账号？<Link to="/register">立即注册</Link>
-          </div>
-        </Form>
+        <div style={{ textAlign: 'center', padding: '40px 0' }}>
+          <Spin size="large" />
+          <div style={{ marginTop: 16 }}>正在登录...</div>
+        </div>
       </Card>
     </div>
   )

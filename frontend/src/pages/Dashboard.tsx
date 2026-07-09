@@ -24,7 +24,8 @@ import {
   StarOutlined,
 } from '@ant-design/icons'
 import { useNavigate } from 'react-router-dom'
-import { clothingAPI } from '../api'
+import { clothingAPI, userAPI } from '../api'
+import { useAuth } from '../context/AuthContext'
 
 const { Title, Text } = Typography
 const { useBreakpoint } = Grid
@@ -49,6 +50,7 @@ interface RecommendItem {
 
 const Dashboard: React.FC = () => {
   const navigate = useNavigate()
+  const { user } = useAuth()
   const screens = useBreakpoint()
   const [loading, setLoading] = useState(true)
   const [recommendations, setRecommendations] = useState<RecommendItem[]>([])
@@ -62,8 +64,18 @@ const Dashboard: React.FC = () => {
   const fetchData = async () => {
     setLoading(true)
     try {
-      // 获取猜你喜欢推荐
-      const recData = await clothingAPI.getList({ limit: 6 })
+      // 猜你喜欢: 真实推荐算法(基于当前用户的 KG-HybridRec)
+      // 未登录时退化为通用列表
+      let recData: any[] = []
+      if (user) {
+        try {
+          recData = await userAPI.getRecommendations(user.id, undefined, 6)
+        } catch {
+          recData = await clothingAPI.getList({ limit: 6 })
+        }
+      } else {
+        recData = await clothingAPI.getList({ limit: 6 })
+      }
       setRecommendations(
         recData.map((item: any) => ({
           ...item,
@@ -71,11 +83,13 @@ const Dashboard: React.FC = () => {
         }))
       )
 
-      // 获取热门商品（复用数据，实际项目中应调用专门的热门接口）
-      setHotItems(recData.slice(0, 6))
+      // 热门榜单: 后端按 PURCHASED 数量降序(真实交互频次)
+      const hotData = await clothingAPI.getHot({ limit: 6 })
+      setHotItems(hotData.slice(0, 6))
 
-      // 获取新品（复用数据，实际项目中应调用专门的新品接口）
-      setNewItems(recData.slice(0, 6))
+      // 新品上市: 后端按 Clothing.id 倒序(导入顺序)
+      const newData = await clothingAPI.getNew({ limit: 6 })
+      setNewItems(newData.slice(0, 6))
     } catch (error) {
       console.error('Failed to fetch data:', error)
     } finally {
@@ -160,16 +174,18 @@ const Dashboard: React.FC = () => {
         >
           {item.image_url ? (
             <img
+              key={item.image_url}
               alt={item.name}
               src={item.image_url}
+              loading="eager"
+              decoding="sync"
               style={{
                 width: '100%',
                 height: '100%',
                 objectFit: 'cover',
-              }}
-              onError={(e) => {
-                const target = e.target as HTMLImageElement
-                target.style.display = 'none'
+                display: 'block',
+                position: 'relative',
+                zIndex: 1,
               }}
             />
           ) : (
@@ -363,18 +379,35 @@ const Dashboard: React.FC = () => {
                       hoverable
                       onClick={() => handleItemClick(item)}
                       cover={
-                        <div
-                          style={{
-                            height: 100,
-                            background: `linear-gradient(135deg, #ff6b6b ${index * 30}%, #feca57 100%)`,
-                            display: 'flex',
-                            alignItems: 'center',
-                            justifyContent: 'center',
-                            fontSize: 36,
-                          }}
-                        >
-                          #{index + 1}
-                        </div>
+                        item.image_url ? (
+                          <img
+                            key={item.image_url}
+                            alt={item.name}
+                            src={item.image_url}
+                            loading="eager"
+                            decoding="sync"
+                            style={{
+                              width: '100%',
+                              height: 100,
+                              objectFit: 'cover',
+                              display: 'block',
+                            }}
+                          />
+                        ) : (
+                          <div
+                            style={{
+                              height: 100,
+                              background: `linear-gradient(135deg, #ff6b6b ${index * 30}%, #feca57 100%)`,
+                              display: 'flex',
+                              alignItems: 'center',
+                              justifyContent: 'center',
+                              fontSize: 36,
+                              color: '#fff',
+                            }}
+                          >
+                            #{index + 1}
+                          </div>
+                        )
                       }
                     >
                       <Text
@@ -425,18 +458,34 @@ const Dashboard: React.FC = () => {
                       hoverable
                       onClick={() => handleItemClick(item)}
                       cover={
-                        <div
-                          style={{
-                            height: 100,
-                            background: `linear-gradient(135deg, #a8edea ${index * 20}%, #fed6e3 100%)`,
-                            display: 'flex',
-                            alignItems: 'center',
-                            justifyContent: 'center',
-                            fontSize: 36,
-                          }}
-                        >
-                          <StarOutlined style={{ color: '#52c41a' }} />
-                        </div>
+                        item.image_url ? (
+                          <img
+                            key={item.image_url}
+                            alt={item.name}
+                            src={item.image_url}
+                            loading="eager"
+                            decoding="sync"
+                            style={{
+                              width: '100%',
+                              height: 100,
+                              objectFit: 'cover',
+                              display: 'block',
+                            }}
+                          />
+                        ) : (
+                          <div
+                            style={{
+                              height: 100,
+                              background: `linear-gradient(135deg, #a8edea ${index * 20}%, #fed6e3 100%)`,
+                              display: 'flex',
+                              alignItems: 'center',
+                              justifyContent: 'center',
+                              fontSize: 36,
+                            }}
+                          >
+                            <StarOutlined style={{ color: '#52c41a' }} />
+                          </div>
+                        )
                       }
                     >
                       <Text

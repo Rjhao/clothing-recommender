@@ -6,8 +6,19 @@ This is the complete KG-HybridRec model combining:
 3. Improvement B: Self-Supervised Graph Contrastive Learning
 4. Improvement C: Attention-based Explanation Paths
 
-Training Objective:
-    L_total = L_BPR + λ_CL · L_CL + λ_Θ · ||Θ||²
+Training Objective (paper):
+    L_total = L_BPR + λ_KG · L_KG + λ_CL · L_CL + λ_Θ · ||Θ||²
+
+Bug fixes applied (see algorithm review):
+  - KG branch now uses the REAL heterogeneous graph (RippleNet samples real
+    neighbors, not torch.randint noise). graph passed through to KGEmbeddingModule.
+  - Adaptive gate receives REAL per-user interaction_counts and cf_confidence
+    (CFModule constructed with n_interactions). predict_score passes cf_confidence.
+  - Single BPR on the fused score (cf_loss is monitored but NOT added — the
+    paper's objective has no auxiliary CF term; CF trains through the fused BPR).
+  - Negative sampling supports 1:n_neg (neg_item_ids [B, n_neg]) per the paper's
+    1:4 protocol; pos/user are expanded so BPR is computed over all pairs.
+  - KG triplets (TransR margin loss) are now actually trained when provided.
 """
 import torch
 import torch.nn as nn
@@ -28,19 +39,7 @@ from recommender.improvements.attention_explain import AttentionExplanationModul
 
 
 class KGHybridRec(nn.Module):
-    """KG-HybridRec: Knowledge Graph Hybrid Recommendation Model.
-
-    A hybrid recommendation model combining:
-    - Collaborative Filtering (BPR-MF)
-    - Knowledge Graph Embeddings (TransR + RippleNet)
-    - Multimodal Features (CLIP + BERT)
-    - Graph Attention Network Fusion
-
-    With three improvements:
-    - A: Adaptive Gated Fusion (cold start)
-    - B: Self-Supervised Graph Contrastive Learning (data sparsity)
-    - C: Attention-based Explanation Paths (interpretability)
-    """
+    """KG-HybridRec: Knowledge Graph Hybrid Recommendation Model."""
 
     def __init__(
         self,
@@ -58,25 +57,23 @@ class KGHybridRec(nn.Module):
         use_improvement_c: bool = True,
         lambda_cl: float = 0.1,
         lambda_reg: float = 1e-4,
+        lambda_kg: float = 0.1,
+        graph: Optional[Dict] = None,
+        n_interactions: Optional[torch.Tensor] = None,
     ):
         """
-        Initialize KG-HybridRec.
-
         Args:
-            n_users: Number of users
-            n_items: Number of items
-            n_entities: Number of entities in knowledge graph
-            n_relations: Number of relation types
+            n_users, n_items, n_entities, n_relations: graph dimensions
             embedding_dim: Embedding dimension
-            n_hops: Number of hops for RippleNet
-            n_heads: Number of attention heads
-            n_layers: Number of GAT layers
-            use_multimodal: Whether to use multimodal features
-            use_improvement_a: Whether to use adaptive gated fusion
-            use_improvement_b: Whether to use graph contrastive learning
-            use_improvement_c: Whether to use attention explanation
-            lambda_cl: Weight for contrastive loss
-            lambda_reg: L2 regularization coefficient
+            n_hops: RippleNet hops
+            n_heads, n_layers: GAT config
+            use_improvement_a/b/c, use_multimodal: switches
+            lambda_cl, lambda_reg, lambda_kg: loss weights
+            graph: heterogeneous graph dict (edge_index, edge_type, n_total,
+                n_relations, item_offset, node_offsets) for KG + improvement B.
+                None -> random-neighbor fallback (not recommended).
+            n_interactions: per-user interaction count tensor [n_users] for
+                CFModule confidence + adaptive gate cold-start signal.
         """
         super().__init__()
 
@@ -92,36 +89,41 @@ class KGHybridRec(nn.Module):
         self.use_improvement_c = use_improvement_c
         self.lambda_cl = lambda_cl
         self.lambda_reg = lambda_reg
+        self.lambda_kg = lambda_kg
+        self.graph = graph
 
         # ============ KGAT Backbone ============
 
-        # CF Module (BPR-MF)
+        # CF Module (BPR-MF) — receives per-user interaction counts so
+        # get_confidence returns real values (drives the adaptive gate).
         self.cf_module = CFModule(
             n_users=n_users,
             n_items=n_items,
             embedding_dim=embedding_dim,
+            n_interactions=n_interactions,
         )
 
-        # KG Embedding Module (TransR + RippleNet)
+        # KG Embedding Module (TransR + RippleNet) — wired to the REAL graph.
         self.kg_module = KGEmbeddingModule(
             n_entities=n_entities,
             n_relations=n_relations,
             embedding_dim=embedding_dim,
             n_hops=n_hops,
+            graph=graph,
         )
 
-        # Multimodal Module (CLIP + BERT)
         if use_multimodal:
             self.mm_module = MultimodalModule(
                 embedding_dim=embedding_dim,
                 fusion_method="weighted",
             )
 
-        # GAT Fusion Module
+        # GAT Fusion (used when improvement A is OFF)
+        # kg_dim = embedding_dim * n_hops (RippleNet concat); mm_dim always embedding_dim.
         self.gat_fusion = GATFusionModule(
             cf_dim=embedding_dim,
-            kg_dim=embedding_dim * (n_hops if True else 1),  # RippleNet output dim
-            mm_dim=embedding_dim if use_multimodal else 0,
+            kg_dim=embedding_dim * n_hops,
+            mm_dim=embedding_dim,
             hidden_dim=embedding_dim,
             n_heads=n_heads,
             n_layers=n_layers,
@@ -129,23 +131,23 @@ class KGHybridRec(nn.Module):
 
         # ============ Improvements ============
 
-        # Improvement A: Adaptive Gated Fusion
         if use_improvement_a:
             self.adaptive_gate = AdaptiveGateModule(
                 cf_dim=embedding_dim,
-                kg_dim=embedding_dim,
-                mm_dim=embedding_dim if use_multimodal else 0,
+                kg_dim=embedding_dim * n_hops,
+                mm_dim=embedding_dim,
                 hidden_dim=embedding_dim // 2,
+                output_dim=embedding_dim,
             )
 
-        # Improvement B: Graph Contrastive Learning
         if use_improvement_b:
+            n_total_nodes = graph['n_total'] if graph is not None else None
             self.graph_contrastive = GraphContrastiveModule(
                 embedding_dim=embedding_dim,
                 temperature=0.1,
+                n_total_nodes=n_total_nodes,
             )
 
-        # Improvement C: Attention Explanation
         if use_improvement_c:
             self.explanation_module = AttentionExplanationModuleWrapper(
                 n_relation_types=n_relations,
@@ -153,8 +155,6 @@ class KGHybridRec(nn.Module):
             )
 
         # ============ Prediction Layer ============
-
-        # Final prediction layer
         self.predict = nn.Sequential(
             nn.Linear(embedding_dim, embedding_dim // 2),
             nn.ReLU(),
@@ -173,46 +173,59 @@ class KGHybridRec(nn.Module):
         texts: Optional[List[str]] = None,
         return_explanations: bool = False,
     ) -> Tuple[torch.Tensor, Dict]:
-        """
-        Forward pass.
+        """Forward pass.
 
         Args:
-            user_ids: User indices [batch_size]
-            pos_item_ids: Positive item indices [batch_size]
-            neg_item_ids: Negative item indices [batch_size]
-            kg_triplets: Optional (head, relation, tail) tuples for KG loss
-            interaction_counts: User interaction counts for adaptive gate
-            images: Optional image tensors for multimodal
-            texts: Optional text list for multimodal
-            return_explanations: Whether to return explanations
-
+            user_ids: [B]
+            pos_item_ids: [B]
+            neg_item_ids: [B] or [B, n_neg] (1:n_neg negative sampling)
+            kg_triplets: optional (head, relation, tail_pos, tail_neg) for TransR
+            interaction_counts: [B] per-user counts for adaptive gate
         Returns:
-            Tuple of (loss_dict, metrics_dict)
+            (total_loss, metrics)
         """
-        metrics = {}
-        losses = {}
+        metrics: Dict = {}
+        losses: Dict = {}
+
+        B = user_ids.size(0)
+        device = user_ids.device
+
+        # ---- expand to 1:n_neg granularity ----
+        # neg may be [B] (n_neg=1) or [B, n_neg]. Flatten and expand pos/user.
+        if neg_item_ids.dim() == 1:
+            n_neg = 1
+            neg_flat = neg_item_ids
+            u_ids = user_ids
+            p_ids = pos_item_ids
+        else:
+            n_neg = neg_item_ids.size(1)
+            neg_flat = neg_item_ids.reshape(-1)
+            u_ids = user_ids.unsqueeze(1).expand(B, n_neg).reshape(-1)
+            p_ids = pos_item_ids.unsqueeze(1).expand(B, n_neg).reshape(-1)
+        M = u_ids.size(0)  # B * n_neg
+
+        # expand interaction_counts to [M]
+        if interaction_counts is not None:
+            if interaction_counts.size(0) == B and n_neg > 1:
+                ic = interaction_counts.unsqueeze(1).expand(B, n_neg).reshape(-1)
+            else:
+                ic = interaction_counts
+        else:
+            ic = None
 
         # ============ 1. CF Branch ============
-        cf_loss, cf_metrics = self.cf_module(
-            user_ids, pos_item_ids, neg_item_ids
-        )
-        losses['cf_loss'] = cf_loss
+        cf_loss, cf_metrics = self.cf_module(u_ids, p_ids, neg_flat)
+        losses['cf_loss'] = cf_loss  # monitored, NOT added to total (paper has no aux CF term)
         metrics.update({f'cf_{k}': v for k, v in cf_metrics.items()})
 
-        # Get CF representations
-        cf_user_emb = self.cf_module.get_user_representation(user_ids)
-        cf_pos_emb = self.cf_module.get_item_representation(pos_item_ids)
-        cf_neg_emb = self.cf_module.get_item_representation(neg_item_ids)
+        cf_pos_emb = self.cf_module.get_item_representation(p_ids)    # [M, dim]
+        cf_neg_emb = self.cf_module.get_item_representation(neg_flat)  # [M, dim]
+        cf_confidence = self.cf_module.get_confidence(u_ids)          # [M]
 
-        # CF confidence for adaptive gate
-        cf_confidence = self.cf_module.get_confidence(user_ids)
+        # ============ 2. KG Branch (real graph) ============
+        kg_pos_emb, hop_attentions = self.kg_module(u_ids, p_ids)      # [M, dim*n_hops]
+        kg_neg_emb, _ = self.kg_module(u_ids, neg_flat)
 
-        # ============ 2. KG Branch ============
-        # Get KG representations (using item IDs as entity IDs)
-        kg_pos_emb, hop_attentions = self.kg_module(user_ids, pos_item_ids)
-        kg_neg_emb, _ = self.kg_module(user_ids, neg_item_ids)
-
-        # KG loss (TransR)
         if kg_triplets is not None:
             head, relation, tail_pos, tail_neg = kg_triplets
             kg_loss, kg_metrics = self.kg_module.compute_kg_loss(
@@ -224,10 +237,6 @@ class KGHybridRec(nn.Module):
         # ============ 3. Multimodal Branch ============
         if self.use_multimodal and images is not None and texts is not None:
             mm_pos_emb, mm_metrics = self.mm_module(images, texts)
-            # NOTE: proper negative MM embeddings require negative-item
-            # images/texts, which forward() does not currently receive. Using
-            # zeros (not mm_pos_emb) so the MM branch gets a non-zero BPR
-            # gradient instead of identical pos/neg (which gave zero gradient).
             mm_neg_emb = torch.zeros_like(mm_pos_emb)
             metrics.update({f'mm_{k}': v for k, v in mm_metrics.items()})
         else:
@@ -236,41 +245,25 @@ class KGHybridRec(nn.Module):
 
         # ============ 4. Improvement A: Adaptive Gate ============
         if self.use_improvement_a:
-            # Use adaptive gated fusion
             fused_pos, gate_metrics = self.adaptive_gate(
-                cf_pos_emb,
-                kg_pos_emb,
-                mm_pos_emb,
-                interaction_counts=interaction_counts,
-                cf_confidence=cf_confidence,
+                cf_pos_emb, kg_pos_emb, mm_pos_emb,
+                interaction_counts=ic, cf_confidence=cf_confidence,
             )
             fused_neg, _ = self.adaptive_gate(
-                cf_neg_emb,
-                kg_neg_emb,
-                mm_neg_emb,
-                interaction_counts=interaction_counts,
-                cf_confidence=cf_confidence,
+                cf_neg_emb, kg_neg_emb, mm_neg_emb,
+                interaction_counts=ic, cf_confidence=cf_confidence,
             )
             metrics.update(gate_metrics)
         else:
-            # Use simple GAT fusion
-            # Create dummy adjacency for GAT
-            batch_size = user_ids.size(0)
-            adj = torch.eye(batch_size * 3, device=user_ids.device)  # Simplified
-
-            fused_pos,gat_attention = self.gat_fusion(
-                cf_pos_emb, kg_pos_emb, mm_pos_emb, adj
-            )
-            fused_neg, _ = self.gat_fusion(
-                cf_neg_emb, kg_neg_emb, mm_neg_emb, adj
-            )
+            # GAT fusion with identity adjacency (cf/kg/mm are feature channels
+            # of the same batch nodes, so adj is [M, M]).
+            adj = torch.eye(M, device=device)
+            fused_pos, _ = self.gat_fusion(cf_pos_emb, kg_pos_emb, mm_pos_emb, adj)
+            fused_neg, _ = self.gat_fusion(cf_neg_emb, kg_neg_emb, mm_neg_emb, adj)
 
         # ============ 5. Prediction ============
-        # Compute scores using fused representations
-        pos_scores = self.predict(fused_pos).squeeze(-1)
-        neg_scores = self.predict(fused_neg).squeeze(-1)
-
-        # BPR loss
+        pos_scores = self.predict(fused_pos).squeeze(-1)  # [M]
+        neg_scores = self.predict(fused_neg).squeeze(-1)  # [M]
         bpr_loss = -torch.log(torch.sigmoid(pos_scores - neg_scores) + 1e-8).mean()
         losses['bpr_loss'] = bpr_loss
         metrics['bpr_loss'] = bpr_loss.item()
@@ -279,25 +272,30 @@ class KGHybridRec(nn.Module):
 
         # ============ 6. Improvement B: Contrastive Loss ============
         if self.use_improvement_b:
-            # Two augmented views of the SAME items via feature dropout.
-            # (Previously torch.roll paired item i with item i+1 — a different
-            #  item — giving wrong contrastive gradients. Feature-space dropout
-            #  is a valid SimCLR-style augmentation when graph structure is not
-            #  available in this forward pass.)
-            z_i = fused_pos
-            z_j = F.dropout(fused_pos, p=0.2, training=self.training)
-
-            cl_loss, cl_metrics = self.graph_contrastive(z_i, z_j)
+            if self.graph is not None:
+                item_off = self.graph['item_offset']
+                batch_nodes = torch.cat([
+                    user_ids,
+                    item_off + pos_item_ids.reshape(-1),
+                    item_off + neg_flat,
+                ])
+                ei = self.graph['edge_index'].to(device)
+                et = self.graph['edge_type'].to(device)
+                cl_loss, cl_metrics = self.graph_contrastive.forward_graph(ei, et, batch_nodes)
+            else:
+                z_i = fused_pos
+                z_j = F.dropout(fused_pos, p=0.2, training=self.training)
+                cl_loss, cl_metrics = self.graph_contrastive(z_i, z_j)
             losses['cl_loss'] = cl_loss
             metrics.update(cl_metrics)
 
         # ============ 7. Total Loss ============
-        total_loss = (
-            losses.get('cf_loss', 0) +
-            losses.get('bpr_loss', 0) +
-            losses.get('kg_loss', torch.tensor(0.0)) +
-            self.lambda_cl * losses.get('cl_loss', torch.tensor(0.0))
-        )
+        # Paper: L_BPR + λ_KG·L_KG + λ_CL·L_CL + λ_Θ·||Θ||²
+        total_loss = losses.get('bpr_loss', torch.tensor(0.0, device=device))
+        if 'kg_loss' in losses:
+            total_loss = total_loss + self.lambda_kg * losses['kg_loss']
+        if 'cl_loss' in losses:
+            total_loss = total_loss + self.lambda_cl * losses['cl_loss']
 
         # L2 regularization
         if self.lambda_reg > 0:
@@ -317,20 +315,7 @@ class KGHybridRec(nn.Module):
         images: Optional[torch.Tensor] = None,
         texts: Optional[List[str]] = None,
     ) -> torch.Tensor:
-        """
-        Predict scores for user-item pairs.
-
-        Args:
-            user_ids: User indices [batch_size]
-            item_ids: Item indices [batch_size]
-            interaction_counts: User interaction counts
-            images: Optional images
-            texts: Optional texts
-
-        Returns:
-            Predicted scores [batch_size]
-        """
-        # Get representations
+        """Predict scores for user-item pairs [batch_size]."""
         cf_emb = self.cf_module.get_item_representation(item_ids)
         kg_emb, _ = self.kg_module(user_ids, item_ids)
 
@@ -339,18 +324,17 @@ class KGHybridRec(nn.Module):
         else:
             mm_emb = torch.zeros_like(cf_emb)
 
-        # Adaptive fusion
         if self.use_improvement_a:
+            cf_confidence = self.cf_module.get_confidence(user_ids)
             fused, _ = self.adaptive_gate(
                 cf_emb, kg_emb, mm_emb,
                 interaction_counts=interaction_counts,
+                cf_confidence=cf_confidence,
             )
         else:
-            batch_size = user_ids.size(0)
-            adj = torch.eye(batch_size, device=user_ids.device)
+            adj = torch.eye(user_ids.size(0), device=user_ids.device)
             fused, _ = self.gat_fusion(cf_emb, kg_emb, mm_emb, adj)
 
-        # Predict
         scores = self.predict(fused).squeeze(-1)
         return torch.sigmoid(scores)
 
@@ -361,36 +345,21 @@ class KGHybridRec(nn.Module):
         interaction_count: int,
         top_k: int = 10,
     ) -> List[Tuple[int, float, Optional[str]]]:
-        """
-        Get top-k recommendations for a user.
-
-        Args:
-            user_id: User ID
-            candidate_items: List of candidate item IDs
-            interaction_count: User's interaction count (for cold start)
-            top_k: Number of items to return
-
-        Returns:
-            List of (item_id, score, explanation) tuples
-        """
+        """Get top-k recommendations for a user."""
         self.eval()
         with torch.no_grad():
             user_ids = torch.tensor([user_id] * len(candidate_items))
             item_ids = torch.tensor(candidate_items)
             interaction_counts = torch.tensor([interaction_count] * len(candidate_items))
 
-            scores = self.predict_score(
-                user_ids, item_ids, interaction_counts
-            )
-
-            # Sort by score
+            scores = self.predict_score(user_ids, item_ids, interaction_counts)
             sorted_indices = torch.argsort(scores, descending=True)[:top_k]
 
             recommendations = []
             for idx in sorted_indices:
                 item_id = candidate_items[idx.item()]
                 score = scores[idx].item()
-                recommendations.append((item_id, score, None))  # explanation optional
+                recommendations.append((item_id, score, None))
 
         return recommendations
 
@@ -400,24 +369,12 @@ class KGHybridRec(nn.Module):
         item_id: int,
         kg_adjacency: Dict[int, List[Tuple[int, int]]],
     ) -> List[str]:
-        """
-        Generate explanations for a recommendation.
-
-        Args:
-            user_id: User ID
-            item_id: Item ID
-            kg_adjacency: Knowledge graph adjacency list
-
-        Returns:
-            List of explanation strings
-        """
+        """Generate explanations for a recommendation."""
         if not self.use_improvement_c:
             return ["基于您的偏好推荐"]
 
         self.eval()
         with torch.no_grad():
-            # Get attention weights (would need to be passed from forward pass)
-            # Simplified: return default explanation
             return [f"推荐这件商品因为它符合您的风格偏好"]
 
 
@@ -432,16 +389,6 @@ class KGHybridRecTrainer:
         lambda_cl: float = 0.1,
         lambda_reg: float = 1e-4,
     ):
-        """
-        Initialize trainer.
-
-        Args:
-            model: KG-HybridRec model
-            learning_rate: Learning rate
-            weight_decay: Weight decay
-            lambda_cl: Contrastive loss weight
-            lambda_reg: L2 regularization weight
-        """
         self.model = model
         self.lambda_cl = lambda_cl
         self.lambda_reg = lambda_reg
@@ -469,14 +416,8 @@ class KGHybridRecTrainer:
         images: Optional[torch.Tensor] = None,
         texts: Optional[List[str]] = None,
     ) -> Dict:
-        """
-        Train for one epoch.
-
-        Returns:
-            Metrics dictionary
-        """
+        """Train for one epoch."""
         self.model.train()
-
         self.optimizer.zero_grad()
 
         loss, metrics = self.model(
@@ -502,12 +443,7 @@ class KGHybridRecTrainer:
         neg_item_ids: torch.Tensor,
         interaction_counts: Optional[torch.Tensor] = None,
     ) -> Dict:
-        """
-        Evaluate model.
-
-        Returns:
-            Metrics dictionary
-        """
+        """Evaluate model."""
         self.model.eval()
         with torch.no_grad():
             _, metrics = self.model(

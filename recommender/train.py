@@ -74,15 +74,23 @@ def parse_args():
     parser.add_argument('--weight-decay', type=float, default=1e-4)
     parser.add_argument('--lambda-cl', type=float, default=0.1)
     parser.add_argument('--lambda-reg', type=float, default=1e-4)
+    parser.add_argument('--lambda-kg', type=float, default=0.1, help='TransR kg_loss weight')
+    parser.add_argument('--n-neg', type=int, default=4, help='negatives per positive (paper 1:4)')
 
     # Data
-    parser.add_argument('--data', type=str, default='data/amazon_fashion_processed.json')
-    parser.add_argument('--train-ratio', type=float, default=0.7)
-    parser.add_argument('--val-ratio', type=float, default=0.1)
+    parser.add_argument('--data', type=str, default='data/amazon_fashion_expanded.json')
+    parser.add_argument('--seed', type=int, default=42)
+
+    # Improvements switches (for ablation)
+    parser.add_argument('--use-a', type=int, default=1, help='adaptive gate')
+    parser.add_argument('--use-b', type=int, default=1, help='graph contrastive')
+    parser.add_argument('--use-c', type=int, default=1, help='attention explain')
+    parser.add_argument('--use-multimodal', type=int, default=0)
 
     # Output
     parser.add_argument('--output-dir', type=str, default='checkpoints')
     parser.add_argument('--save-every', type=int, default=10)
+    parser.add_argument('--tag', type=str, default='full', help='run tag for output subdir')
 
     return parser.parse_args()
 
@@ -103,114 +111,145 @@ def load_data(data_path):
     return products, users, interactions
 
 
-def prepare_training_data(users, interactions, train_ratio=0.7, val_ratio=0.1):
-    """Prepare training and validation data."""
-    # Create user and item ID mappings
+def prepare_training_data(users, interactions, n_neg=4, seed=42):
+    """Prepare training data with unified leave-one-out split + 1:n_neg sampling.
+
+    Uses recommender.split.leave_one_out_split so train and eval agree on which
+    item is test (fixes the 2-interaction val/test collision). Negative sampling
+    excludes the user's FULL interaction set (incl. test item) so test items are
+    never trained as negatives. Per-user counts are REAL (for the adaptive gate).
+    """
+    from recommender.split import (
+        leave_one_out_split, build_user_interacted_set, build_user_train_count
+    )
+    rng = np.random.RandomState(seed)
+
     user_ids = sorted(set(int(i['user_id']) for i in interactions))
     item_ids = sorted(set(int(i['product_id']) for i in interactions))
-
     user2idx = {uid: idx for idx, uid in enumerate(user_ids)}
     item2idx = {iid: idx for idx, iid in enumerate(item_ids)}
-    idx2user = {idx: uid for uid, idx in user2idx.items()}
-    idx2item = {idx: iid for iid, idx in item2idx.items()}
 
-    # Map interactions to indices
-    interaction_list = []
-    for interaction in interactions:
-        uid = int(interaction['user_id'])
-        iid = int(interaction['product_id'])
-        if uid in user2idx and iid in item2idx:
-            interaction_list.append({
-                'user_idx': user2idx[uid],
-                'item_idx': item2idx[iid],
-                'count': interaction.get('interaction_count', 1),
-            })
+    train_pairs, val_pairs, test_pairs = leave_one_out_split(
+        interactions, user2idx, item2idx
+    )
+    user_items = build_user_interacted_set(interactions, user2idx, item2idx)
+    user_count = build_user_train_count(interactions, user2idx, item2idx)
 
-    logger.info(f"Valid interactions: {len(interaction_list)}")
-
-    # Create positive interactions
-    pos_data = [(d['user_idx'], d['item_idx'], d['count']) for d in interaction_list]
-
-    # Create negative samples (random items not in user's interactions)
     n_users = len(user_ids)
     n_items = len(item_ids)
 
-    neg_data = []
-    user_interacted = {}
-    for d in interaction_list:
-        uid = d['user_idx']
-        user_interacted.setdefault(uid, set()).add(d['item_idx'])
+    def make_neg(pairs):
+        """For each (uid, item) sample n_neg negatives excluding user's full set."""
+        out = []
+        for uid_idx, iid in pairs:
+            excluded = user_items.get(uid_idx, set())
+            negs = []
+            while len(negs) < n_neg:
+                cand = int(rng.randint(0, n_items))
+                if cand not in excluded:
+                    negs.append(cand)
+            out.append(negs)
+        return out
 
-    for d in interaction_list:
-        uid = d['user_idx']
-        # Sample negative item
-        neg_item = np.random.randint(0, n_items)
-        while neg_item in user_interacted.get(uid, set()):
-            neg_item = np.random.randint(0, n_items)
-        neg_data.append((uid, neg_item, d['count']))
+    train_neg = make_neg(train_pairs)
+    val_neg = make_neg(val_pairs)
 
-    # Split train/val/test
-    n_samples = len(pos_data)
-    n_train = int(n_samples * train_ratio)
-    n_val = int(n_samples * val_ratio)
+    # train_data / val_data: list of (pos, neg) where pos=(uid,item), neg=[n_neg items]
+    train_data = [((u, i), neg) for (u, i), neg in zip(train_pairs, train_neg)]
+    val_data = [((u, i), neg) for (u, i), neg in zip(val_pairs, val_neg)]
 
-    indices = np.random.permutation(n_samples)
-    train_idx = indices[:n_train]
-    val_idx = indices[n_train:n_train + n_val]
-    test_idx = indices[n_train + n_val:]
-
-    train_data = [pos_data[i] for i in train_idx]
-    train_neg_data = [neg_data[i] for i in train_idx]
-    val_data = [pos_data[i] for i in val_idx]
-    val_neg_data = [neg_data[i] for i in val_idx]
-    test_data = [pos_data[i] for i in test_idx]
-    test_neg_data = [neg_data[i] for i in test_idx]
-
-    logger.info(f"Train: {len(train_data)}, Val: {len(val_data)}, Test: {len(test_data)}")
+    logger.info(f"Users: {n_users}, Items: {n_items}")
+    logger.info(f"Train: {len(train_data)}, Val: {len(val_data)}, Test: {len(test_pairs)}, n_neg: {n_neg}")
 
     return {
         'n_users': n_users,
         'n_items': n_items,
-        'n_entities': n_items + n_users + 100,  # Approximate
-        'n_relations': 10,
-        'train_data': list(zip(train_data, train_neg_data)),
-        'val_data': list(zip(val_data, val_neg_data)),
-        'test_data': list(zip(test_data, test_neg_data)),
+        'train_data': train_data,
+        'val_data': val_data,
+        'test_pairs': test_pairs,
         'user2idx': user2idx,
         'item2idx': item2idx,
+        'user_count': user_count,  # {uid_idx: count} — real per-user counts
     }
+
+
+def sample_kg_triplets(kg_triplets_all, batch_size, n_entities, device):
+    """Sample a batch of (head, rel, tail, neg_tail) for TransR kg_loss."""
+    if len(kg_triplets_all) == 0:
+        return None
+    tidx = np.random.randint(0, len(kg_triplets_all), size=batch_size)
+    t = kg_triplets_all[tidx]
+    head = t[:, 0].to(device)
+    rel = t[:, 1].to(device)
+    tail = t[:, 2].to(device)
+    neg_tail = torch.randint(0, n_entities, (batch_size,), device=device)
+    return (head, rel, tail, neg_tail)
 
 
 def train(args):
     """Main training function."""
+    # Reproducibility: seed python/numpy/torch (CPU + CUDA) + deterministic cudnn.
+    import random as _random
+    _random.seed(args.seed)
+    np.random.seed(args.seed)
+    torch.manual_seed(args.seed)
+    if torch.cuda.is_available():
+        torch.cuda.manual_seed_all(args.seed)
+        torch.backends.cudnn.deterministic = True
+        torch.backends.cudnn.benchmark = False
+
     # Load data
     products, users, interactions = load_data(args.data)
 
-    # Prepare training data
+    # Prepare training data (unified LOO split + 1:n_neg sampling + real counts)
     data = prepare_training_data(
         users, interactions,
-        train_ratio=args.train_ratio,
-        val_ratio=args.val_ratio,
+        n_neg=args.n_neg,
+        seed=args.seed,
     )
+
+    device = torch.device('cuda' if torch.cuda.is_available() else 'cpu')
+    logger.info(f"Using device: {device}")
+
+    # Build heterogeneous graph (used by KG branch + improvement B)
+    from recommender.kgat.hetero_graph import build_graph_for_model, build_kg_triplets
+    graph = build_graph_for_model(products, data['train_data'], data['user2idx'], data['item2idx'])
+    logger.info(f"Built hetero graph: {graph['n_total']} nodes, {graph['edge_index'].size(1)} edges, {graph['n_relations']} relations")
+
+    # KG triplets for TransR kg_loss
+    kg_triplets_all = build_kg_triplets(products, data['item2idx'], graph['node_offsets'])
+    logger.info(f"Built {len(kg_triplets_all)} KG triplets for TransR")
+
+    # Per-user interaction count tensor (real values, not the old label=1)
+    user_count_array = torch.zeros(data['n_users'], dtype=torch.float32)
+    for uid, cnt in data['user_count'].items():
+        user_count_array[uid] = cnt
+
+    n_entities = graph['n_total']
+    n_relations = graph['n_relations']
 
     # Create model
     logger.info("Creating KG-HybridRec model...")
+    logger.info(f"Improvements: A={bool(args.use_a)} B={bool(args.use_b)} C={bool(args.use_c)} MM={bool(args.use_multimodal)}")
     model = KGHybridRec(
         n_users=data['n_users'],
         n_items=data['n_items'],
-        n_entities=data['n_entities'],
-        n_relations=data['n_relations'],
+        n_entities=n_entities,
+        n_relations=n_relations,
         embedding_dim=args.embedding_dim,
         n_hops=args.n_hops,
         n_heads=args.n_heads,
         n_layers=args.n_layers,
-        use_multimodal=False,  # Disable for now (needs images/text)
-        use_improvement_a=True,
-        use_improvement_b=True,
-        use_improvement_c=True,
+        use_multimodal=bool(args.use_multimodal),
+        use_improvement_a=bool(args.use_a),
+        use_improvement_b=bool(args.use_b),
+        use_improvement_c=bool(args.use_c),
         lambda_cl=args.lambda_cl,
         lambda_reg=args.lambda_reg,
-    )
+        lambda_kg=args.lambda_kg,
+        graph=graph,
+        n_interactions=user_count_array,
+    ).to(device)
 
     logger.info(f"Model parameters: {sum(p.numel() for p in model.parameters()):,}")
 
@@ -224,7 +263,7 @@ def train(args):
     )
 
     # Create output directory
-    output_dir = Path(args.output_dir)
+    output_dir = Path(args.output_dir) / args.tag
     output_dir.mkdir(parents=True, exist_ok=True)
 
     # Training loop
@@ -244,16 +283,19 @@ def train(args):
         for i in range(0, len(train_data), args.batch_size):
             batch = train_data[i:i + args.batch_size]
 
-            user_ids = torch.LongTensor([d[0][0] for d in batch])
-            pos_ids = torch.LongTensor([d[0][1] for d in batch])
-            neg_ids = torch.LongTensor([d[1][1] for d in batch])
-            counts = torch.LongTensor([d[0][2] for d in batch])
+            user_ids = torch.LongTensor([d[0][0] for d in batch]).to(device)
+            pos_ids = torch.LongTensor([d[0][1] for d in batch]).to(device)
+            neg_ids = torch.LongTensor([d[1] for d in batch]).to(device)  # [B, n_neg]
+            counts = torch.LongTensor([data['user_count'][d[0][0]] for d in batch]).to(device)
+
+            kg_triplets = sample_kg_triplets(kg_triplets_all, len(batch), n_entities, device)
 
             metrics = trainer.train_epoch(
                 user_ids=user_ids,
                 pos_item_ids=pos_ids,
                 neg_item_ids=neg_ids,
                 interaction_counts=counts,
+                kg_triplets=kg_triplets,
             )
 
             train_losses.append(metrics['total_loss'])
@@ -272,10 +314,10 @@ def train(args):
         for i in range(0, len(data['val_data']), args.batch_size):
             batch = data['val_data'][i:i + args.batch_size]
 
-            user_ids = torch.LongTensor([d[0][0] for d in batch])
-            pos_ids = torch.LongTensor([d[0][1] for d in batch])
-            neg_ids = torch.LongTensor([d[1][1] for d in batch])
-            counts = torch.LongTensor([d[0][2] for d in batch])
+            user_ids = torch.LongTensor([d[0][0] for d in batch]).to(device)
+            pos_ids = torch.LongTensor([d[0][1] for d in batch]).to(device)
+            neg_ids = torch.LongTensor([d[1] for d in batch]).to(device)  # [B, n_neg]
+            counts = torch.LongTensor([data['user_count'][d[0][0]] for d in batch]).to(device)
 
             metrics = trainer.evaluate(
                 user_ids=user_ids,

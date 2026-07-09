@@ -4,15 +4,7 @@ from neo4j import Driver
 
 from kg.graph.builder import ClothingGraphBuilder
 from kg.graph.query import ClothingGraphQuery
-
-
-def _image_url(item: dict) -> Optional[str]:
-    """Read image URL tolerating either property name used by the import paths.
-
-    import_to_kg.py stores ``image_url`` (lowercase); sync_images_to_neo4j.py
-    historically stored ``Image_url`` (capital). Accept either.
-    """
-    return item.get("image_url") or item.get("Image_url")
+from kg.image_url import resolve_image as _resolve_image
 
 
 def _clothing_id(item: dict) -> int:
@@ -24,6 +16,10 @@ def _clothing_id(item: dict) -> int:
         return int(raw)
     except (TypeError, ValueError):
         return 0
+
+
+# Image URL resolution is shared with the recommendation engine — see
+# kg.image_url.resolve_image (imported above as _resolve_image).
 
 
 class ClothingService:
@@ -50,7 +46,7 @@ class ClothingService:
             record = result.single()
             if record:
                 data = dict(record["c"])
-                data["image_url"] = _image_url(data)
+                data["image_url"] = _resolve_image(data)
                 return data
             return None
 
@@ -62,6 +58,10 @@ class ClothingService:
         offset: int = 0
     ) -> List[dict]:
         """List clothing items with optional filters."""
+        # Empty string (sent by frontend for "no filter") must be treated as None,
+        # otherwise the Cypher WHERE clause matches nothing and the list is empty.
+        category = category or None
+        style = style or None
         results = self.query.find_by_category_style(
             category=category,
             style=style,
@@ -82,7 +82,7 @@ class ClothingService:
                 "season": item.get("season"),
                 "occasion": item.get("occasion"),
                 "price": item.get("price"),
-                "image_url": _image_url(item),
+                "image_url": _resolve_image(item),
             })
         return transformed
 
@@ -103,7 +103,7 @@ class ClothingService:
                 "season": similar.get("season"),
                 "occasion": similar.get("occasion"),
                 "price": similar.get("price"),
-                "image_url": _image_url(similar),
+                "image_url": _resolve_image(similar),
             })
         return transformed
 
@@ -124,6 +124,6 @@ class ClothingService:
                 "season": match.get("season"),
                 "occasion": match.get("occasion"),
                 "price": match.get("price"),
-                "image_url": _image_url(match),
+                "image_url": _resolve_image(match),
             })
         return transformed

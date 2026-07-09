@@ -20,6 +20,8 @@ import torch.nn.functional as F
 from typing import Tuple, List, Optional, Dict
 import math
 
+from recommender.kgat.sparse_gat import SparseGAT
+
 
 class EdgeDropout(nn.Module):
     """Edge Dropout with modality-aware rates.
@@ -75,8 +77,13 @@ class EdgeDropout(nn.Module):
             # Apply type-specific dropout rates
             for i, rate in enumerate(self.edge_type_rates.values()):
                 type_mask = (edge_type == i)
-                drop_mask = torch.rand(type_mask.sum(), device=edge_index.device) < rate
-                mask[type_mask] = mask[type_mask] * (~drop_mask).float()
+                # type_mask.sum() is a 0-dim tensor; cast to int — passing a
+                # 0-dim tensor as the size arg to torch.rand is fragile across
+                # PyTorch versions.
+                n_typed = int(type_mask.sum().item())
+                if n_typed > 0:
+                    drop_mask = torch.rand(n_typed, device=edge_index.device) < rate
+                    mask[type_mask] = mask[type_mask] * (~drop_mask).float()
         else:
             # Uniform random dropout
             dropout_rate = 0.2  # Default rate
@@ -142,19 +149,17 @@ class GraphContrastiveLoss(nn.Module):
         sim_matrix = torch.matmul(z_i, z_j.T) / self.temperature  # [batch, batch]
 
         # Positive pairs are on the diagonal (z_i[i] with z_j[i]).
-        # MUST extract pos_sim BEFORE masking the diagonal to -inf, otherwise
-        # pos_sim becomes -inf and the loss collapses to inf/NaN.
-        # NOTE: torch.diagonal returns a VIEW into sim_matrix, so clone it —
-        # the in-place masked_fill_ below would otherwise corrupt pos_sim too.
-        pos_sim = torch.diagonal(sim_matrix).clone()  # [batch]
-
-        # Mask out the diagonal so self-similarity is excluded from the negatives
+        pos_sim = torch.diagonal(sim_matrix)  # [batch]
         mask_diag = torch.eye(batch_size, device=device, dtype=torch.bool)
-        sim_matrix.masked_fill_(mask_diag, float('-inf'))
 
-        # Negative pairs are all off-diagonal
-        # Loss = -log exp(pos_sim) / Σ exp(negatives)
-        loss = -pos_sim + torch.logsumexp(sim_matrix, dim=-1)
+        # InfoNCE (paper eq. 3-2): the positive STAYS in the denominator.
+        #   L = -log exp(pos) / (exp(pos) + Σ exp(neg)) = -pos + logsumexp(all)
+        # Previously the diagonal was masked to -inf (decoupled CL, unbounded
+        # below and not the paper's formula) — restored here. Symmetric form:
+        # average both directions (z_i->z_j and z_j->z_i).
+        loss_i2j = -pos_sim + torch.logsumexp(sim_matrix, dim=-1)
+        loss_j2i = -pos_sim + torch.logsumexp(sim_matrix, dim=0)
+        loss = (loss_i2j + loss_j2i) / 2
 
         # Apply mask if provided
         if mask is not None:
@@ -186,6 +191,14 @@ class GraphContrastiveModule(nn.Module):
     """Graph Contrastive Learning Module.
 
     This is Improvement B in KG-HybridRec.
+
+    When n_total_nodes is provided, uses REAL graph contrastive learning:
+    two edge-dropout augmented views of the heterogeneous graph are passed
+    through a shared sparse GAT to produce two-view node embeddings, then
+    InfoNCE is computed with same-node-across-views as positives.
+
+    When n_total_nodes is None, falls back to feature-dropout approximation
+    (used by older M0-M3 runs without a graph).
     """
 
     def __init__(
@@ -193,6 +206,10 @@ class GraphContrastiveModule(nn.Module):
         embedding_dim: int = 64,
         temperature: float = 0.1,
         edge_type_rates: Optional[Dict[str, float]] = None,
+        n_total_nodes: Optional[int] = None,
+        gat_layers: int = 2,
+        gat_heads: int = 4,
+        dropout: float = 0.2,
     ):
         """
         Initialize Graph Contrastive Module.
@@ -201,6 +218,9 @@ class GraphContrastiveModule(nn.Module):
             embedding_dim: Embedding dimension
             temperature: Temperature for contrastive loss
             edge_type_rates: Dropout rates by edge type
+            n_total_nodes: If given, enable real graph contrastive learning
+            gat_layers / gat_heads: Sparse GAT config (real-graph mode only)
+            dropout: GAT dropout
         """
         super().__init__()
 
@@ -219,6 +239,48 @@ class GraphContrastiveModule(nn.Module):
             nn.ReLU(),
             nn.Linear(embedding_dim, embedding_dim),
         )
+
+        # Real graph contrastive learning (improvement B done right)
+        self.use_graph = n_total_nodes is not None
+        if self.use_graph:
+            self.node_embedding = nn.Embedding(n_total_nodes, embedding_dim)
+            self.gat = SparseGAT(
+                in_dim=embedding_dim, hidden_dim=embedding_dim,
+                out_dim=embedding_dim, n_heads=gat_heads,
+                n_layers=gat_layers, dropout=dropout,
+            )
+            nn.init.normal_(self.node_embedding.weight, mean=0, std=0.01)
+
+    def _drop_edges(self, edge_index: torch.Tensor, edge_type: torch.Tensor) -> torch.Tensor:
+        """Apply type-aware edge dropout, return filtered edge_index."""
+        mask = self.edge_dropout(edge_index, edge_type=edge_type, training=True)
+        return edge_index[:, mask.bool()]
+
+    def forward_graph(
+        self,
+        edge_index: torch.Tensor,
+        edge_type: torch.Tensor,
+        batch_node_ids: torch.Tensor,
+    ) -> Tuple[torch.Tensor, dict]:
+        """Real improvement B: two edge-dropout views over the full graph.
+
+        Args:
+            edge_index: [2, E] full graph edges
+            edge_type: [E] edge type per edge
+            batch_node_ids: [B] node ids in the batch to compute CL over
+        Returns:
+            (cl_loss, metrics)
+        """
+        ei1 = self._drop_edges(edge_index, edge_type)
+        ei2 = self._drop_edges(edge_index, edge_type)
+
+        v1 = self.gat(self.node_embedding.weight, ei1)
+        v2 = self.gat(self.node_embedding.weight, ei2)
+
+        z_i = self.projection_head(v1[batch_node_ids])
+        z_j = self.projection_head(v2[batch_node_ids])
+
+        return self.contrastive_loss(z_i, z_j)
 
     def create_augmented_views(
         self,
