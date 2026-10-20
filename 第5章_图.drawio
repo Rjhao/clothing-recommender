@@ -1,0 +1,466 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<mxfile host="app.diagrams.net" modified="2026-08-02T15:55:00.000Z" agent="claude" version="22.0.0" type="device">
+  <diagram name="图5-1 架构拓扑" id="fig5-1">
+    <mxGraphModel dx="1400" dy="900" grid="1" gridSize="10" guides="1" tooltips="1" connect="1" arrows="1" fold="1" page="1" pageScale="1" pageWidth="1100" pageHeight="850" math="0" shadow="0">
+      <root>
+        <mxCell id="0"/>
+        <mxCell id="1" parent="0"/>
+        <mxCell id="title" value="图 5-1  系统五层架构与部署拓扑" style="text;html=1;strokeColor=none;fillColor=none;align=center;verticalAlign=middle;whiteSpace=wrap;rounded=0;fontSize=22;fontStyle=1" vertex="1" parent="1">
+          <mxGeometry x="40" y="20" width="1020" height="40" as="geometry"/>
+        </mxCell>
+        <mxCell id="L1" value="表现层&#10;React + TypeScript + Vite&#10;Three.js / VRM 渲染" style="rounded=1;whiteSpace=wrap;html=1;fillColor=#dae8fc;strokeColor=#6c8ebf;fontSize=18;fontStyle=1" vertex="1" parent="1">
+          <mxGeometry x="80" y="90" width="940" height="80" as="geometry"/>
+        </mxCell>
+        <mxCell id="L2" value="接入层&#10;FastAPI 主服务 :8000  +  试穿服务 :8001&#10;JWT 鉴权  ·  CORS  ·  反向代理" style="rounded=1;whiteSpace=wrap;html=1;fillColor=#d5e8d4;strokeColor=#82b366;fontSize=18;fontStyle=1" vertex="1" parent="1">
+          <mxGeometry x="80" y="190" width="940" height="80" as="geometry"/>
+        </mxCell>
+        <mxCell id="L3" value="服务层&#10;推荐引擎 HybridRecommender  ·  试穿引擎  ·  KG 查询&#10;三阶段召回—粗排—精排" style="rounded=1;whiteSpace=wrap;html=1;fillColor=#fff2cc;strokeColor=#d6b656;fontSize=18;fontStyle=1" vertex="1" parent="1">
+          <mxGeometry x="80" y="290" width="940" height="80" as="geometry"/>
+        </mxCell>
+        <mxCell id="L4" value="算法层&#10;KG-HybridRec 模型  ·  TransR 嵌入  ·  Three.js" style="rounded=1;whiteSpace=wrap;html=1;fillColor=#f8cecc;strokeColor=#b85450;fontSize=18;fontStyle=1" vertex="1" parent="1">
+          <mxGeometry x="80" y="390" width="940" height="80" as="geometry"/>
+        </mxCell>
+        <mxCell id="L5" value="存储层&#10;MySQL(用户主数据)  ·  Neo4j(业务知识图谱)  ·  文件(VRM/GLB)" style="rounded=1;whiteSpace=wrap;html=1;fillColor=#e1d5e7;strokeColor=#9673a6;fontSize=18;fontStyle=1" vertex="1" parent="1">
+          <mxGeometry x="80" y="490" width="940" height="80" as="geometry"/>
+        </mxCell>
+        <mxCell id="a1" style="endArrow=classic;html=1;rounded=0;exitX=0.5;exitY=1;entryX=0.5;entryY=0;strokeWidth=2" edge="1" parent="1" source="L1" target="L2">
+          <mxGeometry relative="1" as="geometry"/>
+        </mxCell>
+        <mxCell id="a2" style="endArrow=classic;html=1;rounded=0;exitX=0.5;exitY=1;entryX=0.5;entryY=0;strokeWidth=2" edge="1" parent="1" source="L2" target="L3">
+          <mxGeometry relative="1" as="geometry"/>
+        </mxCell>
+        <mxCell id="a3" style="endArrow=classic;html=1;rounded=0;exitX=0.5;exitY=1;entryX=0.5;entryY=0;strokeWidth=2" edge="1" parent="1" source="L3" target="L4">
+          <mxGeometry relative="1" as="geometry"/>
+        </mxCell>
+        <mxCell id="a4" style="endArrow=classic;html=1;rounded=0;exitX=0.5;exitY=1;entryX=0.5;entryY=0;strokeWidth=2" edge="1" parent="1" source="L4" target="L5">
+          <mxGeometry relative="1" as="geometry"/>
+        </mxCell>
+        <mxCell id="d1" value="Docker 网络互联" style="rounded=1;whiteSpace=wrap;html=1;fillColor=#f5f5f5;strokeColor=#666666;fontSize=16;fontStyle=2" vertex="1" parent="1">
+          <mxGeometry x="80" y="600" width="280" height="60" as="geometry"/>
+        </mxCell>
+        <mxCell id="d2" value="mysql:8" style="rounded=0;whiteSpace=wrap;html=1;fillColor=#ffe6cc;strokeColor=#d79b00;fontSize=16" vertex="1" parent="1">
+          <mxGeometry x="80" y="680" width="200" height="50" as="geometry"/>
+        </mxCell>
+        <mxCell id="d3" value="neo4j:5" style="rounded=0;whiteSpace=wrap;html=1;fillColor=#ffe6cc;strokeColor=#d79b00;fontSize=16" vertex="1" parent="1">
+          <mxGeometry x="290" y="680" width="200" height="50" as="geometry"/>
+        </mxCell>
+        <mxCell id="d4" value="redis:7-alpine" style="rounded=0;whiteSpace=wrap;html=1;fillColor=#ffe6cc;strokeColor=#d79b00;fontSize=16" vertex="1" parent="1">
+          <mxGeometry x="500" y="680" width="200" height="50" as="geometry"/>
+        </mxCell>
+        <mxCell id="d5" value="前端&#10;Vite dev server&#10;(Nginx 反代)" style="rounded=0;whiteSpace=wrap;html=1;fillColor=#ffe6cc;strokeColor=#d79b00;fontSize=16" vertex="1" parent="1">
+          <mxGeometry x="710" y="680" width="310" height="50" as="geometry"/>
+        </mxCell>
+        <mxCell id="a5" style="endArrow=none;html=1;rounded=0;exitX=0.5;exitY=0;entryX=0.5;entryY=1;strokeWidth=2;edgeStyle=orthogonalEdgeStyle" edge="1" parent="1" source="L5" target="d2">
+          <mxGeometry relative="1" as="geometry"/>
+        </mxCell>
+        <mxCell id="a6" style="endArrow=none;html=1;rounded=0;exitX=0.5;exitY=0;entryX=0.5;entryY=1;strokeWidth=2;edgeStyle=orthogonalEdgeStyle" edge="1" parent="1" source="L5" target="d3">
+          <mxGeometry relative="1" as="geometry"/>
+        </mxCell>
+        <mxCell id="a7" style="endArrow=none;html=1;rounded=0;exitX=0.5;exitY=0;entryX=0.5;entryY=1;strokeWidth=2;edgeStyle=orthogonalEdgeStyle" edge="1" parent="1" source="L5" target="d4">
+          <mxGeometry relative="1" as="geometry"/>
+        </mxCell>
+      </root>
+    </mxGraphModel>
+  </diagram>
+  <diagram name="图5-2 双库与两套引擎" id="fig5-2">
+    <mxGraphModel dx="1400" dy="900" grid="1" gridSize="10" guides="1" tooltips="1" connect="1" arrows="1" fold="1" page="1" pageScale="1" pageWidth="1200" pageHeight="800" math="0" shadow="0">
+      <root>
+        <mxCell id="0"/>
+        <mxCell id="1" parent="0"/>
+        <mxCell id="title" value="图 5-2  双库存储与两套推理引擎" style="text;html=1;strokeColor=none;fillColor=none;align=center;verticalAlign=middle;whiteSpace=wrap;rounded=0;fontSize=22;fontStyle=1" vertex="1" parent="1">
+          <mxGeometry x="40" y="20" width="1120" height="40" as="geometry"/>
+        </mxCell>
+        <mxCell id="mysql" value="MySQL&#10;用户主数据&#10;账号 / 偏好 / 身体参数" style="shape=cylinder3;whiteSpace=wrap;html=1;boundedLbl=1;backgroundOutline=1;size=15;fillColor=#dae8fc;strokeColor=#6c8ebf;fontSize=16;fontStyle=1" vertex="1" parent="1">
+          <mxGeometry x="80" y="120" width="220" height="120" as="geometry"/>
+        </mxCell>
+        <mxCell id="neo4j" value="Neo4j&#10;业务知识图谱&#10;87,370 节点 / 424,866 边" style="shape=cylinder3;whiteSpace=wrap;html=1;boundedLbl=1;backgroundOutline=1;size=15;fillColor=#d5e8d4;strokeColor=#82b366;fontSize=16;fontStyle=1" vertex="1" parent="1">
+          <mxGeometry x="320" y="120" width="240" height="120" as="geometry"/>
+        </mxCell>
+        <mxCell id="arrow1" value="加载" style="endArrow=classic;html=1;rounded=0;exitX=0.5;exitY=1;entryX=0.25;entryY=0;strokeWidth=2" edge="1" parent="1" source="mysql" target="offline">
+          <mxGeometry relative="1" as="geometry"/>
+        </mxCell>
+        <mxCell id="arrow2" value="加载" style="endArrow=classic;html=1;rounded=0;exitX=0.5;exitY=1;entryX=0.75;entryY=0;strokeWidth=2" edge="1" parent="1" source="neo4j" target="offline">
+          <mxGeometry relative="1" as="geometry"/>
+        </mxCell>
+        <mxCell id="offline" value="训练期推理 (offline)&#10;构建内存异构图 → KG-HybridRec 前向训练&#10;→ 保存模型权重" style="rounded=1;whiteSpace=wrap;html=1;fillColor=#fff2cc;strokeColor=#d6b656;fontSize=16;fontStyle=1" vertex="1" parent="1">
+          <mxGeometry x="160" y="290" width="700" height="100" as="geometry"/>
+        </mxCell>
+        <mxCell id="weights" value="模型权重&#10;(*.pt)" style="shape=note;whiteSpace=wrap;html=1;backgroundOutline=1;darkOpacity=0.05;fillColor=#f5f5f5;strokeColor=#666666;fontSize=16" vertex="1" parent="1">
+          <mxGeometry x="920" y="310" width="160" height="60" as="geometry"/>
+        </mxCell>
+        <mxCell id="arrow3" value="保存" style="endArrow=classic;html=1;rounded=0;exitX=1;exitY=0.5;entryX=0;entryY=0.5;strokeWidth=2" edge="1" parent="1" source="offline" target="weights">
+          <mxGeometry relative="1" as="geometry"/>
+        </mxCell>
+        <mxCell id="online" value="服务期推理 (online)&#10;Neo4j Cypher 三阶段召回 + 模型精排&#10;P95 &lt; 500 ms" style="rounded=1;whiteSpace=wrap;html=1;fillColor=#f8cecc;strokeColor=#b85450;fontSize=16;fontStyle=1" vertex="1" parent="1">
+          <mxGeometry x="160" y="450" width="700" height="100" as="geometry"/>
+        </mxCell>
+        <mxCell id="arrow4" value="加载" style="endArrow=classic;html=1;rounded=0;exitX=0.25;exitY=1;entryX=0.5;entryY=0;strokeWidth=2" edge="1" parent="1" source="weights" target="online">
+          <mxGeometry relative="1" as="geometry"/>
+        </mxCell>
+        <mxCell id="arrow5" value="召回" style="endArrow=classic;html=1;rounded=0;exitX=0.5;exitY=1;entryX=0.5;entryY=0;strokeWidth=2" edge="1" parent="1" source="neo4j" target="online">
+          <mxGeometry relative="1" as="geometry"/>
+        </mxCell>
+        <mxCell id="req" value="用户请求" style="ellipse;whiteSpace=wrap;html=1;fillColor=#e1d5e7;strokeColor=#9673a6;fontSize=16" vertex="1" parent="1">
+          <mxGeometry x="900" y="470" width="180" height="60" as="geometry"/>
+        </mxCell>
+        <mxCell id="arrow6" style="endArrow=classic;html=1;rounded=0;exitX=0;exitY=0.5;entryX=1;entryY=0.5;strokeWidth=2" edge="1" parent="1" source="req" target="online">
+          <mxGeometry relative="1" as="geometry"/>
+        </mxCell>
+        <mxCell id="shared" value="两套推理共享同一份权重" style="text;html=1;strokeColor=none;fillColor=none;align=center;verticalAlign=middle;whiteSpace=wrap;fontSize=16;fontStyle=2;fontColor=#666666" vertex="1" parent="1">
+          <mxGeometry x="300" y="620" width="600" height="40" as="geometry"/>
+        </mxCell>
+      </root>
+    </mxGraphModel>
+  </diagram>
+  <diagram name="图5-3 功能模块" id="fig5-3">
+    <mxGraphModel dx="1400" dy="900" grid="1" gridSize="10" guides="1" tooltips="1" connect="1" arrows="1" fold="1" page="1" pageScale="1" pageWidth="1200" pageHeight="800" math="0" shadow="0">
+      <root>
+        <mxCell id="0"/>
+        <mxCell id="1" parent="0"/>
+        <mxCell id="title" value="图 5-3  系统功能模块总览" style="text;html=1;strokeColor=none;fillColor=none;align=center;verticalAlign=middle;whiteSpace=wrap;rounded=0;fontSize=22;fontStyle=1" vertex="1" parent="1">
+          <mxGeometry x="40" y="20" width="1120" height="40" as="geometry"/>
+        </mxCell>
+        <mxCell id="m1" value="推荐功能&#10;Top-K / 冷启动&#10;/ 相似搭配" style="rounded=1;whiteSpace=wrap;html=1;fillColor=#dae8fc;strokeColor=#6c8ebf;fontSize=18;fontStyle=1" vertex="1" parent="1">
+          <mxGeometry x="80" y="100" width="200" height="120" as="geometry"/>
+        </mxCell>
+        <mxCell id="m2" value="用户与权限&#10;注册登录 / 偏好&#10;/ 历史回看" style="rounded=1;whiteSpace=wrap;html=1;fillColor=#d5e8d4;strokeColor=#82b366;fontSize=18;fontStyle=1" vertex="1" parent="1">
+          <mxGeometry x="300" y="100" width="200" height="120" as="geometry"/>
+        </mxCell>
+        <mxCell id="m3" value="知识图谱浏览&#10;统计卡片 / 节点探查&#10;/ 关系图例" style="rounded=1;whiteSpace=wrap;html=1;fillColor=#fff2cc;strokeColor=#d6b656;fontSize=18;fontStyle=1" vertex="1" parent="1">
+          <mxGeometry x="520" y="100" width="200" height="120" as="geometry"/>
+        </mxCell>
+        <mxCell id="m4" value="3D 虚拟试穿&#10;VRM 模特 / GLB 服装&#10;/ 姿态交互" style="rounded=1;whiteSpace=wrap;html=1;fillColor=#f8cecc;strokeColor=#b85450;fontSize=18;fontStyle=1" vertex="1" parent="1">
+          <mxGeometry x="740" y="100" width="200" height="120" as="geometry"/>
+        </mxCell>
+        <mxCell id="m5" value="服装浏览交互&#10;筛选 / 排序 / 详情&#10;/ 交互上报" style="rounded=1;whiteSpace=wrap;html=1;fillColor=#e1d5e7;strokeColor=#9673a6;fontSize=18;fontStyle=1" vertex="1" parent="1">
+          <mxGeometry x="960" y="100" width="180" height="120" as="geometry"/>
+        </mxCell>
+        <mxCell id="spa" value="前端 React 单页应用" style="rounded=1;whiteSpace=wrap;html=1;fillColor=#f5f5f5;strokeColor=#666666;fontSize=16;fontStyle=2" vertex="1" parent="1">
+          <mxGeometry x="80" y="280" width="1060" height="50" as="geometry"/>
+        </mxCell>
+        <mxCell id="a1" style="endArrow=none;html=1;rounded=0;exitX=0.5;exitY=1;entryX=0.1;entryY=0;strokeWidth=1" edge="1" parent="1" source="m1" target="spa">
+          <mxGeometry relative="1" as="geometry"/>
+        </mxCell>
+        <mxCell id="a2" style="endArrow=none;html=1;rounded=0;exitX=0.5;exitY=1;entryX=0.3;entryY=0;strokeWidth=1" edge="1" parent="1" source="m2" target="spa">
+          <mxGeometry relative="1" as="geometry"/>
+        </mxCell>
+        <mxCell id="a3" style="endArrow=none;html=1;rounded=0;exitX=0.5;exitY=1;entryX=0.5;entryY=0;strokeWidth=1" edge="1" parent="1" source="m3" target="spa">
+          <mxGeometry relative="1" as="geometry"/>
+        </mxCell>
+        <mxCell id="a4" style="endArrow=none;html=1;rounded=0;exitX=0.5;exitY=1;entryX=0.7;entryY=0;strokeWidth=1" edge="1" parent="1" source="m4" target="spa">
+          <mxGeometry relative="1" as="geometry"/>
+        </mxCell>
+        <mxCell id="a5" style="endArrow=none;html=1;rounded=0;exitX=0.5;exitY=1;entryX=0.9;entryY=0;strokeWidth=1" edge="1" parent="1" source="m5" target="spa">
+          <mxGeometry relative="1" as="geometry"/>
+        </mxCell>
+        <mxCell id="be1" value="推荐服务&#10;:8000" style="rounded=1;whiteSpace=wrap;html=1;fillColor=#dae8fc;strokeColor=#6c8ebf;fontSize=16;fontStyle=1" vertex="1" parent="1">
+          <mxGeometry x="200" y="370" width="280" height="60" as="geometry"/>
+        </mxCell>
+        <mxCell id="be2" value="试穿服务&#10;:8001" style="rounded=1;whiteSpace=wrap;html=1;fillColor=#f8cecc;strokeColor=#b85450;fontSize=16;fontStyle=1" vertex="1" parent="1">
+          <mxGeometry x="740" y="370" width="280" height="60" as="geometry"/>
+        </mxCell>
+        <mxCell id="neo" value="Neo4j 知识图谱" style="shape=cylinder3;whiteSpace=wrap;html=1;boundedLbl=1;backgroundOutline=1;size=15;fillColor=#d5e8d4;strokeColor=#82b366;fontSize=16;fontStyle=1" vertex="1" parent="1">
+          <mxGeometry x="500" y="480" width="220" height="100" as="geometry"/>
+        </mxCell>
+        <mxCell id="a6" style="endArrow=classic;html=1;rounded=0;exitX=0.5;exitY=1;entryX=0.5;entryY=0;strokeWidth=2" edge="1" parent="1" source="spa" target="be1">
+          <mxGeometry relative="1" as="geometry"/>
+        </mxCell>
+        <mxCell id="a7" style="endArrow=classic;html=1;rounded=0;exitX=0.5;exitY=1;entryX=0.5;entryY=0;strokeWidth=2" edge="1" parent="1" source="spa" target="be2">
+          <mxGeometry relative="1" as="geometry"/>
+        </mxCell>
+        <mxCell id="a8" style="endArrow=classic;html=1;rounded=0;exitX=0.5;exitY=1;entryX=0.25;entryY=0;strokeWidth=2" edge="1" parent="1" source="be1" target="neo">
+          <mxGeometry relative="1" as="geometry"/>
+        </mxCell>
+        <mxCell id="a9" style="endArrow=classic;html=1;rounded=0;exitX=0.5;exitY=1;entryX=0.75;entryY=0;strokeWidth=2" edge="1" parent="1" source="be2" target="neo">
+          <mxGeometry relative="1" as="geometry"/>
+        </mxCell>
+        <mxCell id="note" value="模块间通过 RESTful 接口解耦,前端按需调用" style="text;html=1;strokeColor=none;fillColor=none;align=center;fontSize=14;fontStyle=2;fontColor=#666666" vertex="1" parent="1">
+          <mxGeometry x="280" y="620" width="640" height="30" as="geometry"/>
+        </mxCell>
+      </root>
+    </mxGraphModel>
+  </diagram>
+  <diagram name="图5-4 模型结构" id="fig5-4">
+    <mxGraphModel dx="1400" dy="900" grid="1" gridSize="10" guides="1" tooltips="1" connect="1" arrows="1" fold="1" page="1" pageScale="1" pageWidth="1300" pageHeight="800" math="0" shadow="0">
+      <root>
+        <mxCell id="0"/>
+        <mxCell id="1" parent="0"/>
+        <mxCell id="title" value="图 5-4  KG-HybridRec 三通路与改进模块结构" style="text;html=1;strokeColor=none;fillColor=none;align=center;verticalAlign=middle;whiteSpace=wrap;rounded=0;fontSize=22;fontStyle=1" vertex="1" parent="1">
+          <mxGeometry x="40" y="20" width="1220" height="40" as="geometry"/>
+        </mxCell>
+        <mxCell id="cf" value="CF 通路&#10;user/item 嵌入&#10;+ 邻域聚合" style="rounded=1;whiteSpace=wrap;html=1;fillColor=#dae8fc;strokeColor=#6c8ebf;fontSize=16;fontStyle=1" vertex="1" parent="1">
+          <mxGeometry x="80" y="120" width="240" height="100" as="geometry"/>
+        </mxCell>
+        <mxCell id="kg" value="KG 通路&#10;3-hop 点积 softmax&#10;4 类关系采样" style="rounded=1;whiteSpace=wrap;html=1;fillColor=#d5e8d4;strokeColor=#82b366;fontSize=16;fontStyle=1" vertex="1" parent="1">
+          <mxGeometry x="350" y="120" width="240" height="100" as="geometry"/>
+        </mxCell>
+        <mxCell id="co" value="内容通路&#10;TransR per-relation&#10;M_r 投影" style="rounded=1;whiteSpace=wrap;html=1;fillColor=#fff2cc;strokeColor=#d6b656;fontSize=16;fontStyle=1" vertex="1" parent="1">
+          <mxGeometry x="620" y="120" width="240" height="100" as="geometry"/>
+        </mxCell>
+        <mxCell id="merge" value="向量拼接" style="rounded=1;whiteSpace=wrap;html=1;fillColor=#f5f5f5;strokeColor=#666666;fontSize=16;fontStyle=1" vertex="1" parent="1">
+          <mxGeometry x="320" y="260" width="280" height="50" as="geometry"/>
+        </mxCell>
+        <mxCell id="a1" style="endArrow=classic;html=1;rounded=0;exitX=0.5;exitY=1;entryX=0.25;entryY=0;strokeWidth=2" edge="1" parent="1" source="cf" target="merge">
+          <mxGeometry relative="1" as="geometry"/>
+        </mxCell>
+        <mxCell id="a2" style="endArrow=classic;html=1;rounded=0;exitX=0.5;exitY=1;entryX=0.5;entryY=0;strokeWidth=2" edge="1" parent="1" source="kg" target="merge">
+          <mxGeometry relative="1" as="geometry"/>
+        </mxCell>
+        <mxCell id="a3" style="endArrow=classic;html=1;rounded=0;exitX=0.5;exitY=1;entryX=0.75;entryY=0;strokeWidth=2" edge="1" parent="1" source="co" target="merge">
+          <mxGeometry relative="1" as="geometry"/>
+        </mxCell>
+        <mxCell id="impA" value="改进 A 自适应门控&#10;cold_mask = 1 - clamp(n_u/10, 0, 1)&#10;通路权重 [KG↑ KG↑ CF↓]" style="rounded=1;whiteSpace=wrap;html=1;fillColor=#e1d5e7;strokeColor=#9673a6;fontSize=14;fontStyle=1" vertex="1" parent="1">
+          <mxGeometry x="80" y="350" width="280" height="90" as="geometry"/>
+        </mxCell>
+        <mxCell id="impB" value="改进 B 边类型 dropout + 对称 InfoNCE&#10;drop(0.1, 0.2, 0.3)  τ = 0.1" style="rounded=1;whiteSpace=wrap;html=1;fillColor=#e1d5e7;strokeColor=#9673a6;fontSize=14;fontStyle=1" vertex="1" parent="1">
+          <mxGeometry x="380" y="350" width="280" height="90" as="geometry"/>
+        </mxCell>
+        <mxCell id="impC" value="改进 C 路径可解释性&#10;Top-3 路径  s = Σ log(α_e + 1e-8)" style="rounded=1;whiteSpace=wrap;html=1;fillColor=#e1d5e7;strokeColor=#9673a6;fontSize=14;fontStyle=1" vertex="1" parent="1">
+          <mxGeometry x="680" y="350" width="280" height="90" as="geometry"/>
+        </mxCell>
+        <mxCell id="a4" style="endArrow=classic;html=1;rounded=0;exitX=0.5;exitY=1;entryX=0.25;entryY=0;strokeWidth=2" edge="1" parent="1" source="merge" target="impA">
+          <mxGeometry relative="1" as="geometry"/>
+        </mxCell>
+        <mxCell id="a5" style="endArrow=classic;html=1;rounded=0;exitX=0.5;exitY=1;entryX=0.5;entryY=0;strokeWidth=2" edge="1" parent="1" source="merge" target="impB">
+          <mxGeometry relative="1" as="geometry"/>
+        </mxCell>
+        <mxCell id="a6" style="endArrow=classic;html=1;rounded=0;exitX=0.5;exitY=1;entryX=0.75;entryY=0;strokeWidth=2" edge="1" parent="1" source="merge" target="impC">
+          <mxGeometry relative="1" as="geometry"/>
+        </mxCell>
+        <mxCell id="output" value="排序分 (BPR) + 路径解释 Top-3" style="rounded=1;whiteSpace=wrap;html=1;fillColor=#f8cecc;strokeColor=#b85450;fontSize=18;fontStyle=1" vertex="1" parent="1">
+          <mxGeometry x="280" y="490" width="400" height="60" as="geometry"/>
+        </mxCell>
+        <mxCell id="a7" style="endArrow=classic;html=1;rounded=0;exitX=0.5;exitY=1;entryX=0.5;entryY=0;strokeWidth=2" edge="1" parent="1" source="impA" target="output">
+          <mxGeometry relative="1" as="geometry"/>
+        </mxCell>
+        <mxCell id="a8" style="endArrow=classic;html=1;rounded=0;exitX=0.5;exitY=1;entryX=0.5;entryY=0;strokeWidth=2" edge="1" parent="1" source="impB" target="output">
+          <mxGeometry relative="1" as="geometry"/>
+        </mxCell>
+        <mxCell id="a9" style="endArrow=classic;html=1;rounded=0;exitX=0.5;exitY=1;entryX=0.5;entryY=0;strokeWidth=2" edge="1" parent="1" source="impC" target="output">
+          <mxGeometry relative="1" as="geometry"/>
+        </mxCell>
+        <mxCell id="loss" value="联合损失:  L = L_BPR + 0.1·L_KG + 0.1·L_CL + 1e-4·‖Θ‖²" style="rounded=1;whiteSpace=wrap;html=1;fillColor=#ffe6cc;strokeColor=#d79b00;fontSize=14;fontStyle=2" vertex="1" parent="1">
+          <mxGeometry x="200" y="600" width="600" height="60" as="geometry"/>
+        </mxCell>
+        <mxCell id="a10" style="endArrow=classic;html=1;rounded=0;exitX=0.5;exitY=1;entryX=0.5;entryY=0;strokeWidth=2;dashed=1" edge="1" parent="1" source="output" target="loss">
+          <mxGeometry relative="1" as="geometry"/>
+        </mxCell>
+      </root>
+    </mxGraphModel>
+  </diagram>
+  <diagram name="图5-5 渲染栈" id="fig5-5">
+    <mxGraphModel dx="1400" dy="900" grid="1" gridSize="10" guides="1" tooltips="1" connect="1" arrows="1" fold="1" page="1" pageScale="1" pageWidth="1100" pageHeight="800" math="0" shadow="0">
+      <root>
+        <mxCell id="0"/>
+        <mxCell id="1" parent="0"/>
+        <mxCell id="title" value="图 5-5  前端 3D 渲染栈分层" style="text;html=1;strokeColor=none;fillColor=none;align=center;verticalAlign=middle;whiteSpace=wrap;rounded=0;fontSize=22;fontStyle=1" vertex="1" parent="1">
+          <mxGeometry x="40" y="20" width="1020" height="40" as="geometry"/>
+        </mxCell>
+        <mxCell id="L1" value="React 组件层&#10;VirtualTryOn  ·  ThreeDClothViewer&#10;useEffect / useState / 事件回调" style="rounded=1;whiteSpace=wrap;html=1;fillColor=#dae8fc;strokeColor=#6c8ebf;fontSize=16;fontStyle=1" vertex="1" parent="1">
+          <mxGeometry x="80" y="100" width="940" height="80" as="geometry"/>
+        </mxCell>
+        <mxCell id="L2" value="Three.js 场景层&#10;Scene / Camera / Renderer&#10;DirectionalLight / AmbientLight / 地面" style="rounded=1;whiteSpace=wrap;html=1;fillColor=#d5e8d4;strokeColor=#82b366;fontSize=16;fontStyle=1" vertex="1" parent="1">
+          <mxGeometry x="80" y="210" width="940" height="80" as="geometry"/>
+        </mxCell>
+        <mxCell id="L3" value="模型加载层&#10;@pixiv/three-vrm   →   VRM 模特加载&#10;GLTFLoader          →   GLB 服装加载" style="rounded=1;whiteSpace=wrap;html=1;fillColor=#fff2cc;strokeColor=#d6b656;fontSize=16;fontStyle=1" vertex="1" parent="1">
+          <mxGeometry x="80" y="320" width="940" height="80" as="geometry"/>
+        </mxCell>
+        <mxCell id="L4" value="应用层 (本系统实现)&#10;骨骼遍历 (UpperArm / LowerArm)  +  GLB 四步归一化&#10;内置服装按材质名隐藏  +  异步加载 race protection" style="rounded=1;whiteSpace=wrap;html=1;fillColor=#f8cecc;strokeColor=#b85450;fontSize=16;fontStyle=1" vertex="1" parent="1">
+          <mxGeometry x="80" y="430" width="940" height="100" as="geometry"/>
+        </mxCell>
+        <mxCell id="L5" value="WebGL 渲染管线&#10;PCFSoftShadowMap / PerspectiveCamera / 鼠标交互&#10;requestAnimationFrame 循环" style="rounded=1;whiteSpace=wrap;html=1;fillColor=#e1d5e7;strokeColor=#9673a6;fontSize=16;fontStyle=1" vertex="1" parent="1">
+          <mxGeometry x="80" y="560" width="940" height="80" as="geometry"/>
+        </mxCell>
+        <mxCell id="a1" style="endArrow=classic;html=1;rounded=0;exitX=0.5;exitY=1;entryX=0.5;entryY=0;strokeWidth=2" edge="1" parent="1" source="L1" target="L2">
+          <mxGeometry relative="1" as="geometry"/>
+        </mxCell>
+        <mxCell id="a2" style="endArrow=classic;html=1;rounded=0;exitX=0.5;exitY=1;entryX=0.5;entryY=0;strokeWidth=2" edge="1" parent="1" source="L2" target="L3">
+          <mxGeometry relative="1" as="geometry"/>
+        </mxCell>
+        <mxCell id="a3" style="endArrow=classic;html=1;rounded=0;exitX=0.5;exitY=1;entryX=0.5;entryY=0;strokeWidth=2" edge="1" parent="1" source="L3" target="L4">
+          <mxGeometry relative="1" as="geometry"/>
+        </mxCell>
+        <mxCell id="a4" style="endArrow=classic;html=1;rounded=0;exitX=0.5;exitY=1;entryX=0.5;entryY=0;strokeWidth=2" edge="1" parent="1" source="L4" target="L5">
+          <mxGeometry relative="1" as="geometry"/>
+        </mxCell>
+        <mxCell id="note" value="层次之间职责清晰: React 只管 UI 状态, Three.js 管场景, 模型层只负责加载, 应用层实现业务适配" style="text;html=1;strokeColor=none;fillColor=none;align=center;fontSize=14;fontStyle=2;fontColor=#666666" vertex="1" parent="1">
+          <mxGeometry x="80" y="680" width="940" height="40" as="geometry"/>
+        </mxCell>
+      </root>
+    </mxGraphModel>
+  </diagram>
+  <diagram name="图5-6 GLB适配" id="fig5-6">
+    <mxGraphModel dx="1400" dy="900" grid="1" gridSize="10" guides="1" tooltips="1" connect="1" arrows="1" fold="1" page="1" pageScale="1" pageWidth="1200" pageHeight="600" math="0" shadow="0">
+      <root>
+        <mxCell id="0"/>
+        <mxCell id="1" parent="0"/>
+        <mxCell id="title" value="图 5-6  GLB 服装四步归一化流程" style="text;html=1;strokeColor=none;fillColor=none;align=center;verticalAlign=middle;whiteSpace=wrap;rounded=0;fontSize=22;fontStyle=1" vertex="1" parent="1">
+          <mxGeometry x="40" y="20" width="1120" height="40" as="geometry"/>
+        </mxCell>
+        <mxCell id="in" value="输入&#10;任意来源 GLB" style="rounded=1;whiteSpace=wrap;html=1;fillColor=#f5f5f5;strokeColor=#666666;fontSize=18;fontStyle=1" vertex="1" parent="1">
+          <mxGeometry x="60" y="120" width="160" height="80" as="geometry"/>
+        </mxCell>
+        <mxCell id="s1" value="[1] 上轴检测&#10;Box3.getSize&#10;size.z > size.y × 1.2&#10;→ Z-up 需绕 X 旋转 -π/2" style="rounded=1;whiteSpace=wrap;html=1;fillColor=#dae8fc;strokeColor=#6c8ebf;fontSize=14;fontStyle=1" vertex="1" parent="1">
+          <mxGeometry x="260" y="120" width="220" height="120" as="geometry"/>
+        </mxCell>
+        <mxCell id="s2" value="[2] 朝向对齐&#10;绕 Y 旋转 -π/2&#10;模型 +X 对齐 VRM +Z&#10;Z-up 用 YXZ 顺序" style="rounded=1;whiteSpace=wrap;html=1;fillColor=#d5e8d4;strokeColor=#82b366;fontSize=14;fontStyle=1" vertex="1" parent="1">
+          <mxGeometry x="520" y="120" width="220" height="120" as="geometry"/>
+        </mxCell>
+        <mxCell id="s3" value="[3] 缩放归一&#10;scaleY = target / size.y&#10;target: 上衣 0.6 / 裤 0.6 / 裙 0.9&#10;X/Z = scaleY × 1.05" style="rounded=1;whiteSpace=wrap;html=1;fillColor=#fff2cc;strokeColor=#d6b656;fontSize=14;fontStyle=1" vertex="1" parent="1">
+          <mxGeometry x="780" y="120" width="220" height="120" as="geometry"/>
+        </mxCell>
+        <mxCell id="s4" value="[4] 居中落底&#10;center → (0,0,0)&#10;box.min.y → 0" style="rounded=1;whiteSpace=wrap;html=1;fillColor=#f8cecc;strokeColor=#b85450;fontSize=14;fontStyle=1" vertex="1" parent="1">
+          <mxGeometry x="1020" y="120" width="120" height="120" as="geometry"/>
+        </mxCell>
+        <mxCell id="out" value="输出&#10;归一化模型&#10;可直接放入 posMap" style="rounded=1;whiteSpace=wrap;html=1;fillColor=#f5f5f5;strokeColor=#666666;fontSize=18;fontStyle=1" vertex="1" parent="1">
+          <mxGeometry x="60" y="320" width="160" height="80" as="geometry"/>
+        </mxCell>
+        <mxCell id="a1" style="endArrow=classic;html=1;rounded=0;exitX=1;exitY=0.5;entryX=0;entryY=0.5;strokeWidth=2" edge="1" parent="1" source="in" target="s1">
+          <mxGeometry relative="1" as="geometry"/>
+        </mxCell>
+        <mxCell id="a2" style="endArrow=classic;html=1;rounded=0;exitX=1;exitY=0.5;entryX=0;entryY=0.5;strokeWidth=2" edge="1" parent="1" source="s1" target="s2">
+          <mxGeometry relative="1" as="geometry"/>
+        </mxCell>
+        <mxCell id="a3" style="endArrow=classic;html=1;rounded=0;exitX=1;exitY=0.5;entryX=0;entryY=0.5;strokeWidth=2" edge="1" parent="1" source="s2" target="s3">
+          <mxGeometry relative="1" as="geometry"/>
+        </mxCell>
+        <mxCell id="a4" style="endArrow=classic;html=1;rounded=0;exitX=1;exitY=0.5;entryX=0;entryY=0.5;strokeWidth=2" edge="1" parent="1" source="s3" target="s4">
+          <mxGeometry relative="1" as="geometry"/>
+        </mxCell>
+        <mxCell id="a5" style="endArrow=classic;html=1;rounded=0;exitX=0;exitY=1;entryX=1;entryY=0.5;strokeWidth=2" edge="1" parent="1" source="s4" target="out">
+          <mxGeometry relative="1" as="geometry"/>
+        </mxCell>
+        <mxCell id="result" value="结果: 任意 GLB 来源(Babylon/Blender/Sketchfab/Khronos)均可自动适配,设计师无需为每件服装单独调参" style="rounded=1;whiteSpace=wrap;html=1;fillColor=#ffe6cc;strokeColor=#d79b00;fontSize=14;fontStyle=2" vertex="1" parent="1">
+          <mxGeometry x="260" y="320" width="880" height="60" as="geometry"/>
+        </mxCell>
+      </root>
+    </mxGraphModel>
+  </diagram>
+  <diagram name="图5-7 VRM处理" id="fig5-7">
+    <mxGraphModel dx="1400" dy="900" grid="1" gridSize="10" guides="1" tooltips="1" connect="1" arrows="1" fold="1" page="1" pageScale="1" pageWidth="1200" pageHeight="700" math="0" shadow="0">
+      <root>
+        <mxCell id="0"/>
+        <mxCell id="1" parent="0"/>
+        <mxCell id="title" value="图 5-7  VRM 姿态与内置服装处理流程" style="text;html=1;strokeColor=none;fillColor=none;align=center;verticalAlign=middle;whiteSpace=wrap;rounded=0;fontSize=22;fontStyle=1" vertex="1" parent="1">
+          <mxGeometry x="40" y="20" width="1120" height="40" as="geometry"/>
+        </mxCell>
+        <mxCell id="in" value="原始 VRM&#10;T-pose 双臂水平" style="rounded=1;whiteSpace=wrap;html=1;fillColor=#f5f5f5;strokeColor=#666666;fontSize=18;fontStyle=1" vertex="1" parent="1">
+          <mxGeometry x="60" y="120" width="160" height="80" as="geometry"/>
+        </mxCell>
+        <mxCell id="s1" value="[1] 上臂骨骼遍历&#10;匹配 J_Bip_(L|R)_UpperArm&#10;绕 Z 旋转 ∓π/2" style="rounded=1;whiteSpace=wrap;html=1;fillColor=#dae8fc;strokeColor=#6c8ebf;fontSize=14;fontStyle=1" vertex="1" parent="1">
+          <mxGeometry x="260" y="120" width="240" height="120" as="geometry"/>
+        </mxCell>
+        <mxCell id="s2" value="[2] 强制矩阵刷新&#10;obj.updateMatrix()&#10;obj.updateMatrixWorld(true)&#10;避免 SkinnedMesh 缓存" style="rounded=1;whiteSpace=wrap;html=1;fillColor=#d5e8d4;strokeColor=#82b366;fontSize=14;fontStyle=1" vertex="1" parent="1">
+          <mxGeometry x="540" y="120" width="240" height="120" as="geometry"/>
+        </mxCell>
+        <mxCell id="s3" value="[3] 内置服装过滤&#10;遍历材质名&#10;_CLOTH → visible = false&#10;其他后缀保留" style="rounded=1;whiteSpace=wrap;html=1;fillColor=#fff2cc;strokeColor=#d6b656;fontSize=14;fontStyle=1" vertex="1" parent="1">
+          <mxGeometry x="820" y="120" width="240" height="120" as="geometry"/>
+        </mxCell>
+        <mxCell id="out" value="干净 VRM 模特&#10;双臂下垂 +&#10;无内置白模" style="rounded=1;whiteSpace=wrap;html=1;fillColor=#f5f5f5;strokeColor=#666666;fontSize=18;fontStyle=1" vertex="1" parent="1">
+          <mxGeometry x="430" y="320" width="240" height="80" as="geometry"/>
+        </mxCell>
+        <mxCell id="a1" style="endArrow=classic;html=1;rounded=0;exitX=1;exitY=0.5;entryX=0;entryY=0.5;strokeWidth=2" edge="1" parent="1" source="in" target="s1">
+          <mxGeometry relative="1" as="geometry"/>
+        </mxCell>
+        <mxCell id="a2" style="endArrow=classic;html=1;rounded=0;exitX=1;exitY=0.5;entryX=0;entryY=0.5;strokeWidth=2" edge="1" parent="1" source="s1" target="s2">
+          <mxGeometry relative="1" as="geometry"/>
+        </mxCell>
+        <mxCell id="a3" style="endArrow=classic;html=1;rounded=0;exitX=1;exitY=0.5;entryX=0;entryY=0.5;strokeWidth=2" edge="1" parent="1" source="s2" target="s3">
+          <mxGeometry relative="1" as="geometry"/>
+        </mxCell>
+        <mxCell id="a4" style="endArrow=classic;html=1;rounded=0;exitX=0.25;exitY=1;entryX=0.25;entryY=0;strokeWidth=2" edge="1" parent="1" source="s1" target="out">
+          <mxGeometry relative="1" as="geometry"/>
+        </mxCell>
+        <mxCell id="a5" style="endArrow=classic;html=1;rounded=0;exitX=0.75;exitY=1;entryX=0.75;entryY=0;strokeWidth=2" edge="1" parent="1" source="s3" target="out">
+          <mxGeometry relative="1" as="geometry"/>
+        </mxCell>
+      </root>
+    </mxGraphModel>
+  </diagram>
+  <diagram name="图5-8 时序" id="fig5-8">
+    <mxGraphModel dx="1400" dy="900" grid="1" gridSize="10" guides="1" tooltips="1" connect="1" arrows="1" fold="1" page="1" pageScale="1" pageWidth="1300" pageHeight="600" math="0" shadow="0">
+      <root>
+        <mxCell id="0"/>
+        <mxCell id="1" parent="0"/>
+        <mxCell id="title" value="图 5-8  异步加载防 race condition 时序图" style="text;html=1;strokeColor=none;fillColor=none;align=center;verticalAlign=middle;whiteSpace=wrap;rounded=0;fontSize=22;fontStyle=1" vertex="1" parent="1">
+          <mxGeometry x="40" y="20" width="1220" height="40" as="geometry"/>
+        </mxCell>
+        <mxCell id="user" value="用户" style="shape=umlLifeline;perimeter=lifelinePerimeter;whiteSpace=wrap;html=1;container=1;collapsible=0;recursiveResize=0;outlineConnect=0;fillColor=#dae8fc;strokeColor=#6c8ebf;fontSize=18;fontStyle=1" vertex="1" parent="1">
+          <mxGeometry x="80" y="100" width="100" height="380" as="geometry"/>
+        </mxCell>
+        <mxCell id="comp" value="ThreeDClothViewer&#10;(React)" style="shape=umlLifeline;perimeter=lifelinePerimeter;whiteSpace=wrap;html=1;container=1;collapsible=0;recursiveResize=0;outlineConnect=0;fillColor=#d5e8d4;strokeColor=#82b366;fontSize=18;fontStyle=1" vertex="1" parent="1">
+          <mxGeometry x="280" y="100" width="140" height="380" as="geometry"/>
+        </mxCell>
+        <mxCell id="gen" value="generation&#10;计数器" style="shape=umlLifeline;perimeter=lifelinePerimeter;whiteSpace=wrap;html=1;container=1;collapsible=0;recursiveResize=0;outlineConnect=0;fillColor=#fff2cc;strokeColor=#d6b656;fontSize=16;fontStyle=1" vertex="1" parent="1">
+          <mxGeometry x="520" y="100" width="140" height="380" as="geometry"/>
+        </mxCell>
+        <mxCell id="loader" value="texLoader&#10;async" style="shape=umlLifeline;perimeter=lifelinePerimeter;whiteSpace=wrap;html=1;container=1;collapsible=0;recursiveResize=0;outlineConnect=0;fillColor=#f8cecc;strokeColor=#b85450;fontSize=16;fontStyle=1" vertex="1" parent="1">
+          <mxGeometry x="760" y="100" width="140" height="380" as="geometry"/>
+        </mxCell>
+        <mxCell id="act1" value="点击预设 A" style="html=1;align=center;verticalAlign=middle;fontSize=14" vertex="1" parent="1">
+          <mxGeometry x="80" y="160" width="100" height="30" as="geometry"/>
+        </mxCell>
+        <mxCell id="a1" value="setClothing(A)" style="endArrow=classic;html=1;rounded=0;exitX=1;entryX=0;strokeWidth=2;fontSize=13" edge="1" parent="1" source="user" target="comp">
+          <mxGeometry relative="1" as="geometry">
+            <mxPoint x="180" y="190" as="sourcePoint"/>
+            <mxPoint x="280" y="190" as="targetPoint"/>
+          </mxGeometry>
+        </mxCell>
+        <mxCell id="a2" value="++gen (→1)" style="endArrow=classic;html=1;rounded=0;exitX=1;entryX=0;strokeWidth=2;fontSize=13" edge="1" parent="1" source="comp" target="gen">
+          <mxGeometry relative="1" as="geometry">
+            <mxPoint x="420" y="210" as="sourcePoint"/>
+            <mxPoint x="520" y="210" as="targetPoint"/>
+          </mxGeometry>
+        </mxCell>
+        <mxCell id="a3" value="texLoader(A)" style="endArrow=classic;html=1;rounded=0;exitX=1;entryX=0;strokeWidth=2;fontSize=13;dashed=1" edge="1" parent="1" source="comp" target="loader">
+          <mxGeometry relative="1" as="geometry">
+            <mxPoint x="420" y="230" as="sourcePoint"/>
+            <mxPoint x="760" y="230" as="targetPoint"/>
+          </mxGeometry>
+        </mxCell>
+        <mxCell id="act2" value="点击预设 B" style="html=1;align=center;verticalAlign=middle;fontSize=14" vertex="1" parent="1">
+          <mxGeometry x="80" y="260" width="100" height="30" as="geometry"/>
+        </mxCell>
+        <mxCell id="a4" value="setClothing(B)" style="endArrow=classic;html=1;rounded=0;exitX=1;entryX=0;strokeWidth=2;fontSize=13" edge="1" parent="1" source="user" target="comp">
+          <mxGeometry relative="1" as="geometry">
+            <mxPoint x="180" y="290" as="sourcePoint"/>
+            <mxPoint x="280" y="290" as="targetPoint"/>
+          </mxGeometry>
+        </mxCell>
+        <mxCell id="a5" value="++gen (→2)" style="endArrow=classic;html=1;rounded=0;exitX=1;entryX=0;strokeWidth=2;fontSize=13" edge="1" parent="1" source="comp" target="gen">
+          <mxGeometry relative="1" as="geometry">
+            <mxPoint x="420" y="310" as="sourcePoint"/>
+            <mxPoint x="520" y="310" as="targetPoint"/>
+          </mxGeometry>
+        </mxCell>
+        <mxCell id="a6" value="texLoader(B)" style="endArrow=classic;html=1;rounded=0;exitX=1;entryX=0;strokeWidth=2;fontSize=13;dashed=1" edge="1" parent="1" source="comp" target="loader">
+          <mxGeometry relative="1" as="geometry">
+            <mxPoint x="420" y="330" as="sourcePoint"/>
+            <mxPoint x="760" y="330" as="targetPoint"/>
+          </mxGeometry>
+        </mxCell>
+        <mxCell id="act3" value="A 纹理加载完成" style="html=1;align=center;verticalAlign=middle;fontSize=14" vertex="1" parent="1">
+          <mxGeometry x="760" y="360" width="140" height="30" as="geometry"/>
+        </mxCell>
+        <mxCell id="a7" value="检查 gen: 当前 2 ≠ 创建时 1 → 丢弃" style="endArrow=classic;html=1;rounded=0;exitX=0;entryX=1;strokeWidth=2;fontSize=13" edge="1" parent="1" source="loader" target="gen">
+          <mxGeometry relative="1" as="geometry">
+            <mxPoint x="760" y="390" as="sourcePoint"/>
+            <mxPoint x="660" y="390" as="targetPoint"/>
+          </mxGeometry>
+        </mxCell>
+        <mxCell id="act4" value="B 纹理加载完成" style="html=1;align=center;verticalAlign=middle;fontSize=14" vertex="1" parent="1">
+          <mxGeometry x="760" y="410" width="140" height="30" as="geometry"/>
+        </mxCell>
+        <mxCell id="a8" value="检查 gen: 2 == 2 → 添加到场景" style="endArrow=classic;html=1;rounded=0;exitX=0;entryX=1;strokeWidth=2;fontSize=13" edge="1" parent="1" source="loader" target="gen">
+          <mxGeometry relative="1" as="geometry">
+            <mxPoint x="760" y="440" as="sourcePoint"/>
+            <mxPoint x="660" y="440" as="targetPoint"/>
+          </mxGeometry>
+        </mxCell>
+        <mxCell id="result" value="最终画面: 仅显示预设 B,无 A 残留" style="rounded=1;whiteSpace=wrap;html=1;fillColor=#ffe6cc;strokeColor=#d79b00;fontSize=16;fontStyle=2" vertex="1" parent="1">
+          <mxGeometry x="940" y="370" width="280" height="60" as="geometry"/>
+        </mxCell>
+      </root>
+    </mxGraphModel>
+  </diagram>
+</mxfile>

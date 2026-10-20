@@ -71,7 +71,22 @@ def parse_args():
     parser.add_argument('--epochs', type=int, default=100)
     parser.add_argument('--batch-size', type=int, default=256)
     parser.add_argument('--lr', type=float, default=0.001)
-    parser.add_argument('--weight-decay', type=float, default=1e-4)
+    parser.add_argument('--weight-decay', type=float, default=1e-4,
+                        help='Uniform L2 on all params (legacy). Used when '
+                             '--cf-weight-decay/--kg-weight-decay/'
+                             '--other-weight-decay are all unset.')
+    parser.add_argument('--cf-weight-decay', type=float, default=None,
+                        help='Per-group L2 on cf_module.bpr_mf (user/item '
+                             'embeddings). Default: same as --weight-decay.')
+    parser.add_argument('--kg-weight-decay', type=float, default=None,
+                        help='Per-group L2 on kg_module (KG + TransR + '
+                             'RippleNet). Default: same as --weight-decay.')
+    parser.add_argument('--other-weight-decay', type=float, default=None,
+                        help='Per-group L2 on everything else (gates, GAT, '
+                             'contrastive, predict MLP, multimodal). '
+                             'Default: same as --weight-decay. Set 0 to '
+                             'redirect L2 from non-embedding modules onto '
+                             'cf/kg only (popular-bias fix).')
     parser.add_argument('--lambda-cl', type=float, default=0.1)
     parser.add_argument('--lambda-reg', type=float, default=1e-4)
     parser.add_argument('--lambda-kg', type=float, default=0.1, help='TransR kg_loss weight')
@@ -260,6 +275,9 @@ def train(args):
         weight_decay=args.weight_decay,
         lambda_cl=args.lambda_cl,
         lambda_reg=args.lambda_reg,
+        cf_weight_decay=args.cf_weight_decay,
+        kg_weight_decay=args.kg_weight_decay,
+        other_weight_decay=args.other_weight_decay,
     )
 
     # Create output directory

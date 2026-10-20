@@ -1,0 +1,156 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<mxfile host="app.diagrams.net" type="device">
+  <diagram name="知识图谱子图示例" id="kg-subgraph">
+    <mxGraphModel dx="1100" dy="900" grid="1" gridSize="10" guides="1" tooltips="1" connect="1" arrows="1" fold="1" page="1" pageScale="1" pageWidth="1400" pageHeight="800" math="0" shadow="0">
+      <root>
+        <mxCell id="0"/>
+        <mxCell id="1" parent="0"/>
+
+        <!-- ===== 标题 ===== -->
+        <mxCell id="title" value="图 3-3  知识图谱子图示例" style="text;html=1;strokeColor=none;fillColor=none;align=center;verticalAlign=middle;whiteSpace=wrap;rounded=0;fontSize=16;fontStyle=1;fontColor=#1a1a1a;" vertex="1" parent="1">
+          <mxGeometry x="400" y="15" width="600" height="40" as="geometry"/>
+        </mxCell>
+
+        <!-- ===== 中心节点: Only 运动鞋 ===== -->
+        <mxCell id="center" value="Only 运动鞋" style="ellipse;whiteSpace=wrap;html=1;fillColor=#FFE0B2;strokeColor=#E65100;strokeWidth=3;fontSize=14;align=center;verticalAlign=middle;fontColor=#BF360C;fontStyle=1;" vertex="1" parent="1">
+          <mxGeometry x="600" y="350" width="160" height="80" as="geometry"/>
+        </mxCell>
+
+        <!-- ===== 第一圈: 属性节点 ===== -->
+
+        <mxCell id="brand" value="Only&#xa;(品牌)" style="ellipse;whiteSpace=wrap;html=1;fillColor=#E1BEE7;strokeColor=#7B1FA2;strokeWidth=2;fontSize=11;align=center;verticalAlign=middle;fontColor=#4A148C;" vertex="1" parent="1">
+          <mxGeometry x="180" y="250" width="110" height="60" as="geometry"/>
+        </mxCell>
+
+        <mxCell id="category" value="shoes&#xa;(品类)" style="ellipse;whiteSpace=wrap;html=1;fillColor=#C8E6C9;strokeColor=#388E3C;strokeWidth=2;fontSize=11;align=center;verticalAlign=middle;fontColor=#1B5E20;" vertex="1" parent="1">
+          <mxGeometry x="180" y="400" width="110" height="60" as="geometry"/>
+        </mxCell>
+
+        <mxCell id="style" value="casual&#xa;(风格)" style="ellipse;whiteSpace=wrap;html=1;fillColor=#B39DDB;strokeColor=#512DA8;strokeWidth=2;fontSize=11;align=center;verticalAlign=middle;fontColor=#311B92;" vertex="1" parent="1">
+          <mxGeometry x="180" y="550" width="110" height="60" as="geometry"/>
+        </mxCell>
+
+        <!-- ===== 第二圈: 搭配服装节点（MATCHES_WITH）===== -->
+
+        <mxCell id="m1" value="Topshop 衬衫" style="ellipse;whiteSpace=wrap;html=1;fillColor=#E3F2FD;strokeColor=#1565C0;strokeWidth=1.5;fontSize=11;align=center;verticalAlign=middle;fontColor=#0D47A1;" vertex="1" parent="1">
+          <mxGeometry x="950" y="120" width="130" height="55" as="geometry"/>
+        </mxCell>
+
+        <mxCell id="m2" value="Nike 工装裤" style="ellipse;whiteSpace=wrap;html=1;fillColor=#E3F2FD;strokeColor=#1565C0;strokeWidth=1.5;fontSize=11;align=center;verticalAlign=middle;fontColor=#0D47A1;" vertex="1" parent="1">
+          <mxGeometry x="1100" y="250" width="130" height="55" as="geometry"/>
+        </mxCell>
+
+        <mxCell id="m3" value="New Look 连衣裙" style="ellipse;whiteSpace=wrap;html=1;fillColor=#E3F2FD;strokeColor=#1565C0;strokeWidth=1.5;fontSize=11;align=center;verticalAlign=middle;fontColor=#0D47A1;" vertex="1" parent="1">
+          <mxGeometry x="1100" y="400" width="130" height="55" as="geometry"/>
+        </mxCell>
+
+        <mxCell id="m4" value="Mango 牛仔外套" style="ellipse;whiteSpace=wrap;html=1;fillColor=#E3F2FD;strokeColor=#1565C0;strokeWidth=1.5;fontSize=11;align=center;verticalAlign=middle;fontColor=#0D47A1;" vertex="1" parent="1">
+          <mxGeometry x="1100" y="550" width="130" height="55" as="geometry"/>
+        </mxCell>
+
+        <mxCell id="m5" value="UNIQLO 牛仔裤" style="ellipse;whiteSpace=wrap;html=1;fillColor=#E3F2FD;strokeColor=#1565C0;strokeWidth=1.5;fontSize=11;align=center;verticalAlign=middle;fontColor=#0D47A1;" vertex="1" parent="1">
+          <mxGeometry x="950" y="680" width="130" height="55" as="geometry"/>
+        </mxCell>
+
+        <!-- ===== 第三圈: 相似节点（SIMILAR_TO）===== -->
+
+        <mxCell id="s1" value="Levi's 马丁靴" style="ellipse;whiteSpace=wrap;html=1;fillColor=#FFF9C4;strokeColor=#F9A825;strokeWidth=1.5;fontSize=11;align=center;verticalAlign=middle;fontColor=#F57F17;dashed=1;" vertex="1" parent="1">
+          <mxGeometry x="380" y="80" width="130" height="55" as="geometry"/>
+        </mxCell>
+
+        <mxCell id="s2" value="Converse 帆布鞋" style="ellipse;whiteSpace=wrap;html=1;fillColor=#FFF9C4;strokeColor=#F9A825;strokeWidth=1.5;fontSize=11;align=center;verticalAlign=middle;fontColor=#F57F17;dashed=1;" vertex="1" parent="1">
+          <mxGeometry x="280" y="680" width="130" height="55" as="geometry"/>
+        </mxCell>
+
+        <mxCell id="s3" value="Adidas 跑鞋" style="ellipse;whiteSpace=wrap;html=1;fillColor=#FFF9C4;strokeColor=#F9A825;strokeWidth=1.5;fontSize=11;align=center;verticalAlign=middle;fontColor=#F57F17;dashed=1;" vertex="1" parent="1">
+          <mxGeometry x="620" y="720" width="130" height="55" as="geometry"/>
+        </mxCell>
+
+        <!-- ===== 关系边（带标签） ===== -->
+
+        <!-- Center -> Brand: FROM_BRAND -->
+        <mxCell id="e_brand" style="endArrow=classic;html=1;rounded=0;strokeWidth=2.5;strokeColor=#7B1FA2;labelBackgroundColor=#ffffff;fontSize=11;" edge="1" parent="1" source="center" target="brand">
+          <mxGeometry relative="1" as="geometry"/>
+        </mxCell>
+        <mxCell id="e_brand_lbl" value="FROM_BRAND" style="text;html=1;strokeColor=none;fillColor=#ffffff;align=center;verticalAlign=middle;whiteSpace=wrap;rounded=1;fontSize=10;fontColor=#7B1FA2;fontStyle=1;spacing=5;" vertex="1" parent="1">
+          <mxGeometry x="350" y="270" relative="1" as="geometry"/>
+        </mxCell>
+
+        <!-- Center -> Category: IN_CATEGORY -->
+        <mxCell id="e_cat" style="endArrow=classic;html=1;rounded=0;strokeWidth=2.5;strokeColor=#388E3C;labelBackgroundColor=#ffffff;fontSize=11;" edge="1" parent="1" source="center" target="category">
+          <mxGeometry relative="1" as="geometry"/>
+        </mxCell>
+        <mxCell id="e_cat_lbl" value="IN_CATEGORY" style="text;html=1;strokeColor=none;fillColor=#ffffff;align=center;verticalAlign=middle;whiteSpace=wrap;rounded=1;fontSize=10;fontColor=#388E3C;fontStyle=1;spacing=5;" vertex="1" parent="1">
+          <mxGeometry x="340" y="390" relative="1" as="geometry"/>
+        </mxCell>
+
+        <!-- Center -> Style: HAS_STYLE -->
+        <mxCell id="e_style" style="endArrow=classic;html=1;rounded=0;strokeWidth=2.5;strokeColor=#512DA8;labelBackgroundColor=#ffffff;fontSize=11;" edge="1" parent="1" source="center" target="style">
+          <mxGeometry relative="1" as="geometry"/>
+        </mxCell>
+        <mxCell id="e_style_lbl" value="HAS_STYLE" style="text;html=1;strokeColor=none;fillColor=#ffffff;align=center;verticalAlign=middle;whiteSpace=wrap;rounded=1;fontSize=10;fontColor=#512DA8;fontStyle=1;spacing=5;" vertex="1" parent="1">
+          <mxGeometry x="360" y="520" relative="1" as="geometry"/>
+        </mxCell>
+
+        <!-- Center -> MATCHES_WITH -->
+        <mxCell id="e_m1" style="endArrow=classic;html=1;rounded=0;strokeWidth=2;strokeColor=#1565C0;labelBackgroundColor=#ffffff;fontSize=11;" edge="1" parent="1" source="center" target="m1">
+          <mxGeometry relative="1" as="geometry"/>
+        </mxCell>
+        <mxCell id="e_m1_lbl" value="MATCHES_WITH" style="text;html=1;strokeColor=none;fillColor=#ffffff;align=center;verticalAlign=middle;whiteSpace=wrap;rounded=1;fontSize=10;fontColor=#1565C0;fontStyle=1;spacing=5;" vertex="1" parent="1">
+          <mxGeometry x="840" y="200" relative="1" as="geometry"/>
+        </mxCell>
+
+        <mxCell id="e_m2" style="endArrow=classic;html=1;rounded=0;strokeWidth=2;strokeColor=#1565C0;labelBackgroundColor=#ffffff;fontSize=11;" edge="1" parent="1" source="center" target="m2">
+          <mxGeometry relative="1" as="geometry"/>
+        </mxCell>
+        <mxCell id="e_m2_lbl" value="MATCHES_WITH" style="text;html=1;strokeColor=none;fillColor=#ffffff;align=center;verticalAlign=middle;whiteSpace=wrap;rounded=1;fontSize=10;fontColor=#1565C0;fontStyle=1;spacing=5;" vertex="1" parent="1">
+          <mxGeometry x="900" y="310" relative="1" as="geometry"/>
+        </mxCell>
+
+        <mxCell id="e_m3" style="endArrow=classic;html=1;rounded=0;strokeWidth=2;strokeColor=#1565C0;labelBackgroundColor=#ffffff;fontSize=11;" edge="1" parent="1" source="center" target="m3">
+          <mxGeometry relative="1" as="geometry"/>
+        </mxCell>
+        <mxCell id="e_m3_lbl" value="MATCHES_WITH" style="text;html=1;strokeColor=none;fillColor=#ffffff;align=center;verticalAlign=middle;whiteSpace=wrap;rounded=1;fontSize=10;fontColor=#1565C0;fontStyle=1;spacing=5;" vertex="1" parent="1">
+          <mxGeometry x="900" y="410" relative="1" as="geometry"/>
+        </mxCell>
+
+        <mxCell id="e_m4" style="endArrow=classic;html=1;rounded=0;strokeWidth=2;strokeColor=#1565C0;labelBackgroundColor=#ffffff;fontSize=11;" edge="1" parent="1" source="center" target="m4">
+          <mxGeometry relative="1" as="geometry"/>
+        </mxCell>
+        <mxCell id="e_m4_lbl" value="MATCHES_WITH" style="text;html=1;strokeColor=none;fillColor=#ffffff;align=center;verticalAlign=middle;whiteSpace=wrap;rounded=1;fontSize=10;fontColor=#1565C0;fontStyle=1;spacing=5;" vertex="1" parent="1">
+          <mxGeometry x="900" y="520" relative="1" as="geometry"/>
+        </mxCell>
+
+        <mxCell id="e_m5" style="endArrow=classic;html=1;rounded=0;strokeWidth=2;strokeColor=#1565C0;labelBackgroundColor=#ffffff;fontSize=11;" edge="1" parent="1" source="center" target="m5">
+          <mxGeometry relative="1" as="geometry"/>
+        </mxCell>
+        <mxCell id="e_m5_lbl" value="MATCHES_WITH" style="text;html=1;strokeColor=none;fillColor=#ffffff;align=center;verticalAlign=middle;whiteSpace=wrap;rounded=1;fontSize=10;fontColor=#1565C0;fontStyle=1;spacing=5;" vertex="1" parent="1">
+          <mxGeometry x="840" y="620" relative="1" as="geometry"/>
+        </mxCell>
+
+        <!-- Center -> SIMILAR_TO -->
+        <mxCell id="e_s1" style="endArrow=classic;html=1;rounded=0;strokeWidth=1.5;strokeColor=#F9A825;dashed=1;labelBackgroundColor=#ffffff;fontSize=11;" edge="1" parent="1" source="center" target="s1">
+          <mxGeometry relative="1" as="geometry"/>
+        </mxCell>
+        <mxCell id="e_s1_lbl" value="SIMILAR_TO" style="text;html=1;strokeColor=none;fillColor=#ffffff;align=center;verticalAlign=middle;whiteSpace=wrap;rounded=1;fontSize=10;fontColor=#F57F17;spacing=5;" vertex="1" parent="1">
+          <mxGeometry x="470" y="200" relative="1" as="geometry"/>
+        </mxCell>
+
+        <mxCell id="e_s2" style="endArrow=classic;html=1;rounded=0;strokeWidth=1.5;strokeColor=#F9A825;dashed=1;labelBackgroundColor=#ffffff;fontSize=11;" edge="1" parent="1" source="center" target="s2">
+          <mxGeometry relative="1" as="geometry"/>
+        </mxCell>
+        <mxCell id="e_s2_lbl" value="SIMILAR_TO" style="text;html=1;strokeColor=none;fillColor=#ffffff;align=center;verticalAlign=middle;whiteSpace=wrap;rounded=1;fontSize=10;fontColor=#F57F17;spacing=5;" vertex="1" parent="1">
+          <mxGeometry x="390" y="660" relative="1" as="geometry"/>
+        </mxCell>
+
+        <mxCell id="e_s3" style="endArrow=classic;html=1;rounded=0;strokeWidth=1.5;strokeColor=#F9A825;dashed=1;labelBackgroundColor=#ffffff;fontSize=11;" edge="1" parent="1" source="center" target="s3">
+          <mxGeometry relative="1" as="geometry"/>
+        </mxCell>
+        <mxCell id="e_s3_lbl" value="SIMILAR_TO" style="text;html=1;strokeColor=none;fillColor=#ffffff;align=center;verticalAlign=middle;whiteSpace=wrap;rounded=1;fontSize=10;fontColor=#F57F17;spacing=5;" vertex="1" parent="1">
+          <mxGeometry x="680" y="680" relative="1" as="geometry"/>
+        </mxCell>
+
+      </root>
+    </mxGraphModel>
+  </diagram>
+</mxfile>

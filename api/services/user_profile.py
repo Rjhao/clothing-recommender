@@ -140,7 +140,23 @@ class UserProfileService:
 
         distribution = {}
         for item in style_profile:
-            sid = item.get("s", {}).get("id")
+            # Neo4j 节点在 dict(record) 后仍是 Node 对象,不是 dict
+            # 先尝试 dict(),再 fallback 到 properties
+            s = item.get("s")
+            if s is None:
+                continue
+            if hasattr(s, "_properties"):
+                props = dict(s._properties)
+            elif isinstance(s, dict):
+                props = s
+            else:
+                # neo4j.graph.Node fallback: 直接访问 .items()
+                try:
+                    props = dict(s)
+                except Exception:
+                    continue
+            # Style 节点只有 name 没有 id,优先 name
+            sid = props.get("name") or props.get("id")
             if sid is None:
                 continue
             distribution[sid] = (item.get("preference_score") or 0) / total_score

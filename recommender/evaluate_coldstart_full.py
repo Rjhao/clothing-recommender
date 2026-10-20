@@ -20,6 +20,7 @@ import torch
 import numpy as np
 
 sys.path.insert(0, str(Path(__file__).parent.parent))
+sys.path.insert(0, str(Path(__file__).parent.parent / 'experiments'))
 from recommender.hybrid_rec import KGHybridRec
 from recommender.train import load_data, prepare_training_data
 from recommender.kgat.hetero_graph import build_graph_for_model
@@ -42,6 +43,8 @@ def parse_args():
     ap.add_argument('--use-c', type=int, default=1)
     ap.add_argument('--use-multimodal', type=int, default=0)
     ap.add_argument('--embedding-dim', type=int, default=64)
+    ap.add_argument('--ratio', type=float, default=1.0,
+                    help='train 采样比例(1.0=full, 0.5=half, 0.2=sparse). 注意:仅用于 user/item 分桶计数,不影响模型训练')
     return ap.parse_args()
 
 
@@ -75,9 +78,18 @@ def main():
                                n_negative=args.n_negative, seed=args.seed)
     logger.info(f"Test users: {len(test_data)}")
 
-    # 桶元信息
-    user_train_cnt = Counter(d[0][0] for d in data['train_data'])
-    item_user_cnt = Counter(d[0][1] for d in data['train_data'])
+    # 桶元信息: 按 ratio 采样训练集后,用 sub_train 计数
+    from density_eval import subsample_train_data
+    if args.ratio < 1.0:
+        train_pos_full = [(d[0][0], d[0][1]) for d in data['train_data']]
+        train_neg_dict = {d[0][0]: d[1] for d in data['train_data']}
+        sub_train_pos, _ = subsample_train_data(train_pos_full, train_neg_dict, args.ratio, args.seed)
+        logger.info(f'Sub-sampled train: {len(sub_train_pos)} (ratio={args.ratio})')
+        user_train_cnt = Counter(u for u, _ in sub_train_pos)
+        item_user_cnt = Counter(i for _, i in sub_train_pos)
+    else:
+        user_train_cnt = Counter(d[0][0] for d in data['train_data'])
+        item_user_cnt = Counter(d[0][1] for d in data['train_data'])
     def ub(c): return 'cold' if c < 5 else ('warm' if c <= 20 else 'heavy')
     def ib(c): return 'cold_item' if c < 5 else ('warm_item' if c <= 20 else 'hot_item')
 
@@ -140,7 +152,7 @@ def main():
         'n_test_users': len(test_data),
         'overall': overall, 'by_user': by_user, 'by_item': by_item,
     }
-    out_path = Path('experiments/results') / f'eval_{out["tag"]}_coldstart_full.json'
+    out_path = Path('experiments/results') / f'eval_{out["tag"]}_coldstart_full_ratio{int(args.ratio*100)}.json'
     out_path.parent.mkdir(parents=True, exist_ok=True)
     with open(out_path, 'w') as f:
         json.dump(out, f, indent=2, ensure_ascii=False)

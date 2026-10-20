@@ -1,0 +1,29 @@
+[
+  {
+    "mode": "baseline",
+    "coverage@k": 0.000692,
+    "gini@k": 0.999507,
+    "norm_entropy@k": 0.247248,
+    "tail_ratio@k": 0.0,
+    "n_unique": 15,
+    "n_tail_hits": 0
+  },
+  {
+    "mode": "cf_norm",
+    "coverage@k": 0.001337,
+    "gini@k": 0.99918,
+    "norm_entropy@k": 0.309717,
+    "tail_ratio@k": 0.0,
+    "n_unique": 29,
+    "n_tail_hits": 0
+  },
+  {
+    "mode": "cf_kg_norm",
+    "coverage@k": 0.016603,
+    "gini@k": 0.987167,
+    "norm_entropy@k": 0.576687,
+    "tail_ratio@k": 0.012,
+    "n_unique": 360,
+    "n_tail_hits": 6
+  }
+]

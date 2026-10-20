@@ -1,0 +1,57 @@
+{
+  "protocol": "500 users seed=42, top-10, 全量 catalog",
+  "rows": [
+    {
+      "label": "M0",
+      "tag": "abl_m0",
+      "A": 0,
+      "B": 0,
+      "C": 0,
+      "status": "MISSING",
+      "note": "M0 因 OOM 待测; M2 为修法A版 (B 真正参与打分路径); M3=M1 因 B/C 不打分"
+    },
+    {
+      "label": "M0+A",
+      "tag": "abl_m1",
+      "A": 1,
+      "B": 0,
+      "C": 0,
+      "coverage@k": 0.0006,
+      "gini@k": 0.999526,
+      "norm_entropy@k": 0.240619,
+      "tail_ratio@k": 0.0,
+      "agg_diversity@k": 0.0026,
+      "status": "OK",
+      "note": ""
+    },
+    {
+      "label": "M0+A+B",
+      "tag": "abl_m2",
+      "A": 1,
+      "B": 1,
+      "C": 0,
+      "coverage@k": 0.000646,
+      "gini@k": 0.999512,
+      "norm_entropy@k": 0.250467,
+      "tail_ratio@k": 0.0,
+      "agg_diversity@k": 0.0028,
+      "status": "OK",
+      "note": "M2 为修法A版 (修了 B 与打分脱钩的接线问题)"
+    },
+    {
+      "label": "M0+A+B+C (M3)",
+      "tag": "abl_m3",
+      "A": 1,
+      "B": 1,
+      "C": 1,
+      "coverage@k": 0.000646,
+      "gini@k": 0.999528,
+      "norm_entropy@k": 0.240546,
+      "tail_ratio@k": 0.0,
+      "agg_diversity@k": 0.0028,
+      "status": "OK",
+      "note": "M3 打分路径 = M1 (B/C 不打分了), 故 M3 ≈ M1 (验证 B/C 对多样性无影响)"
+    }
+  ],
+  "note": "M0 待测 (OOM); M2 为修法A版 (B 真参与打分路径, Coverage +34%); M3 = M1 (验证 B/C 对多样性无影响)"
+}

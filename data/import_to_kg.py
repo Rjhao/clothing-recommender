@@ -279,7 +279,7 @@ class DataImporter:
         if json_path is None:
             json_path = os.path.join(
                 os.path.dirname(__file__),
-                'amazon_fashion_with_images.json'
+                'amazon_fashion_real.json'
             )
 
         logger.info(f"Loading data from {json_path}...")
@@ -288,6 +288,20 @@ class DataImporter:
 
         products = data.get('products', [])
         logger.info(f"Loaded {len(products)} products from JSON")
+
+        # ---- 去重：按 (name, category, brand) 合并重复商品 ----
+        seen = {}  # key -> first product
+        unique_key_products = []
+        for p in products:
+            key = (p.get('name'), p.get('category'), p.get('brand'))
+            if key not in seen:
+                seen[key] = True
+                unique_key_products.append(p)
+
+        dup_count = len(products) - len(unique_key_products)
+        if dup_count > 0:
+            logger.info(f"去重: {len(products)} -> {len(unique_key_products)} (移除 {dup_count} 个重复)")
+        products = unique_key_products
 
         # Clear and setup
         self.clear_graph()

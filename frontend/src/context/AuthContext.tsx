@@ -13,13 +13,23 @@ interface User {
   skin_tone?: string
 }
 
+type RegisterExtra = Partial<
+  Pick<User, 'gender' | 'age' | 'height' | 'weight' | 'body_shape' | 'skin_tone'>
+>
+
 interface AuthContextType {
   user: User | null
   token: string | null
   isAuthenticated: boolean
   isLoading: boolean
   login: (username: string, password: string) => Promise<void>
-  register: (username: string, email: string, password: string) => Promise<void>
+  register: (
+    username: string,
+    email: string,
+    password: string,
+    extra?: RegisterExtra
+  ) => Promise<void>
+  refreshUser: () => Promise<void>
   logout: () => void
 }
 
@@ -61,13 +71,26 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     setUser(userData)
   }
 
-  const register = async (username: string, email: string, password: string) => {
-    const response = await authAPI.register(username, password, email)
+  const register = async (
+    username: string,
+    email: string,
+    password: string,
+    extra?: RegisterExtra
+  ) => {
+    const response = await authAPI.register(username, password, email, extra)
     const { access_token } = response
     const userData = await authAPI.getMe(access_token)
     // Only persist the token after getMe succeeds, so it is not orphaned on failure
     localStorage.setItem('token', access_token)
     setToken(access_token)
+    setUser(userData)
+  }
+
+  // Re-pull /auth/me so edits made elsewhere (e.g. the profile page) propagate.
+  const refreshUser = async () => {
+    const storedToken = localStorage.getItem('token')
+    if (!storedToken) return
+    const userData = await authAPI.getMe(storedToken)
     setUser(userData)
   }
 
@@ -86,6 +109,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
         isLoading,
         login,
         register,
+        refreshUser,
         logout,
       }}
     >

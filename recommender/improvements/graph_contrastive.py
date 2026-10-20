@@ -251,6 +251,27 @@ class GraphContrastiveModule(nn.Module):
             )
             nn.init.normal_(self.node_embedding.weight, mean=0, std=0.01)
 
+        # Projection back to scoring representation space. Used by
+        # hybrid_rec.predict_score to inject B's contrastive signal into the
+        # final fused embedding (alpha=0.1 weighted mix, see ablation M2_new).
+        # Always created so that even pre-trained checkpoints (without this layer)
+        # can still load via strict=False and the layer remains unused.
+        self.projection = nn.Linear(embedding_dim, embedding_dim)
+
+    def get_node_repr(self, node_ids: torch.Tensor) -> torch.Tensor:
+        """Look up contrastive-table node embeddings and project to scoring space.
+
+        Returns zeros of shape [B, embedding_dim] when use_graph=False (legacy
+        fallback: pre-2026-07-29 checkpoints trained without a real graph).
+        Callers must pass node ids in the entity-id space (add item_offset to
+        raw item indices if you have item ids).
+        """
+        if not self.use_graph:
+            return torch.zeros(node_ids.size(0), self.embedding_dim,
+                               device=node_ids.device)
+        emb = self.node_embedding(node_ids)  # [B, embedding_dim]
+        return self.projection(emb)
+
     def _drop_edges(self, edge_index: torch.Tensor, edge_type: torch.Tensor) -> torch.Tensor:
         """Apply type-aware edge dropout, return filtered edge_index."""
         mask = self.edge_dropout(edge_index, edge_type=edge_type, training=True)

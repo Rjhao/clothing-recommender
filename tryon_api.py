@@ -33,6 +33,7 @@ import base64
 import uuid
 import logging
 import threading
+import shutil
 from typing import Optional, List
 
 from pathlib import Path
@@ -112,6 +113,12 @@ class TryOnRequest(BaseModel):
     category: str = "top"
 
 
+class TryOnHRVitonRequest(BaseModel):
+    """HR-VITON deep learning try-on request."""
+    person_image_id: str
+    cloth_image_id: str
+
+
 class ClothingItem(BaseModel):
     id: str
     name: str
@@ -126,6 +133,12 @@ class TryOnResponse(BaseModel):
     explanation: str
     # Which backend actually produced the image (mediapipe / fallback)
     backend: str
+
+
+class TryOnHRVitonResponse(BaseModel):
+    result_id: str
+    result_url: str
+    backend: str = "hr_viton"
 
 
 # ============ Clothing Database (Mock) ============
@@ -295,12 +308,17 @@ def _approx_hip_width(pts, shoulder_w):
     return max(knee_w * 0.85, shoulder_w * 0.85)
 
 
-def compute_placement(pts, category, person_shape):
+def compute_placement(pts, category, person_shape, mirrored: bool = False):
     """Compute where and how to place the cloth on the person.
 
     Returns ``(cx, cy, target_w, target_h, angle_deg)`` in pixel coords, where
     ``(cx, cy)`` is the cloth centre, ``target_w/h`` its size, and ``angle_deg``
     the torso tilt to rotate the cloth by.
+
+    Args:
+        mirrored: True if the source image is horizontally mirrored (selfie),
+            in which case the angle is negated so the cloth rotation matches
+            the cloth-flip done by the caller.
     """
     h, w = person_shape[:2]
 
@@ -317,7 +335,14 @@ def compute_placement(pts, category, person_shape):
     hip_w = _approx_hip_width(pts, shoulder_w)
 
     # Tilt of the shoulder line = torso tilt (rotate cloth to match posture).
-    angle = math.degrees(math.atan2(sh_r[1] - sh_l[1], sh_r[0] - sh_l[0]))
+    # Normalise to (-90, 90] so we never flip the cloth upside-down regardless
+    # of mirroring (atan2 returns ~180° when sh_l.x > sh_r.x on a mirrored image).
+    raw_angle = math.degrees(math.atan2(sh_r[1] - sh_l[1], sh_r[0] - sh_l[0]))
+    while raw_angle > 90:
+        raw_angle -= 180
+    while raw_angle <= -90:
+        raw_angle += 180
+    angle = -raw_angle if mirrored else raw_angle
 
     if category in ("top", "outerwear"):
         cx = shoulder_mid[0]
@@ -439,13 +464,14 @@ def _grabcut_refine(cloth_bgr, init_mask):
 
 # ============ Overlay compositing ============
 
-def _overlay_with_pose(person_bgr, cloth_bgr, pts, category) -> bool:
+def _overlay_with_pose(person_bgr, cloth_bgr, pts, category, mirrored: bool = False) -> bool:
     """MediaPipe-driven placement: scale/rotate/feather onto the torso."""
     import cv2
     import numpy as np
 
     h, w = person_bgr.shape[:2]
-    cx, cy, tw, th, angle = compute_placement(pts, category, person_bgr.shape)
+    cx, cy, tw, th, angle = compute_placement(pts, category, person_bgr.shape,
+                                              mirrored=mirrored)
     tw_i, th_i = int(tw), int(th)
     if tw_i < 10 or th_i < 10:
         return False
@@ -587,7 +613,7 @@ def run_acgpn_tryon(person_path: str, cloth_path: str, output_path: str,
         try:
             # Mirror the cloth so it aligns correctly on a mirrored person.
             cloth_vis = cv2.flip(cloth, 1) if mirrored else cloth
-            ok = _overlay_with_pose(person, cloth_vis, pts, category)
+            ok = _overlay_with_pose(person, cloth_vis, pts, category, mirrored=mirrored)
             if ok:
                 backend = "mediapipe"
         except Exception as e:
@@ -629,13 +655,13 @@ async def root():
     }
 
 
-@app.get("/tryon/categories")
+@app.get("/tryon-api/categories")
 async def get_categories() -> List[str]:
     """Get available clothing categories."""
     return list(CLOTHING_DATABASE.keys())
 
 
-@app.get("/tryon/clothing")
+@app.get("/tryon-api/clothing")
 async def get_clothing(category: Optional[str] = None) -> List[ClothingItem]:
     """Get clothing items, optionally filtered by category."""
     if category:
@@ -657,7 +683,7 @@ async def get_clothing(category: Optional[str] = None) -> List[ClothingItem]:
     ]
 
 
-@app.post("/tryon/upload/person")
+@app.post("/tryon-api/upload/person")
 async def upload_person_image(file: UploadFile = File(...)) -> dict:
     """Upload person image for try-on."""
     ext = _validated_ext(file.filename, file.content_type or "")
@@ -681,7 +707,7 @@ async def upload_person_image(file: UploadFile = File(...)) -> dict:
     }
 
 
-@app.post("/tryon/upload/cloth")
+@app.post("/tryon-api/upload/cloth")
 async def upload_cloth_image(file: UploadFile = File(...)) -> dict:
     """Upload cloth image for try-on."""
     ext = _validated_ext(file.filename, file.content_type or "")
@@ -756,6 +782,70 @@ async def virtual_tryon(request: TryOnRequest) -> TryOnResponse:
     )
 
 
+@app.post("/tryon-api_idm", response_model=TryOnHRVitonResponse)
+async def virtual_tryon_idm(request: TryOnHRVitonRequest) -> TryOnHRVitonResponse:
+    """Generate virtual try-on image using IDM-VTON via Hugging Face Spaces.
+
+    Calls the yisol/IDM-VTON Gradio API (free, no GPU required).
+
+    Args:
+        request: person_image_id, cloth_image_id from prior /tryon/upload/* calls
+    """
+    import cv2
+    import numpy as np
+    import io
+
+    # Find uploaded images by id
+    person_file = _find_file(UPLOAD_DIR, "person", request.person_image_id)
+    cloth_file = _find_file(UPLOAD_DIR, "cloth", request.cloth_image_id)
+
+    if not person_file:
+        raise HTTPException(status_code=404, detail="Person image not found")
+    if not cloth_file:
+        raise HTTPException(status_code=404, detail="Cloth image not found")
+
+    logger.info("Calling IDM-VTON Hugging Face Spaces API for person=%s, cloth=%s",
+                request.person_image_id, request.cloth_image_id)
+
+    try:
+        from gradio_client import Client
+        client = Client("yisol/IDM-VTON")
+        result = client.predict(
+            str(cloth_file),
+            str(person_file),
+            api_name="/predict"
+        )
+    except Exception as e:
+        logger.error("IDM-VTON API call failed: %s", e)
+        raise HTTPException(status_code=500, detail=f"IDM-VTON inference failed: {e}")
+
+    # result is a dict or string path to output image
+    result_image_path = None
+    if isinstance(result, dict):
+        result_image_path = result.get("image") or result.get("output") or list(result.values())[0]
+    elif isinstance(result, (list, tuple)):
+        result_image_path = result[0]
+    elif isinstance(result, str):
+        result_image_path = result
+
+    if not result_image_path or not os.path.exists(result_image_path):
+        raise HTTPException(status_code=500, detail="IDM-VTON returned no image")
+
+    # Save result
+    result_id = str(uuid.uuid4())
+    result_filename = f"idm_{result_id}.png"
+    result_path = RESULT_DIR / result_filename
+    shutil.copy(result_image_path, result_path)
+
+    logger.info("IDM-VTON result saved: %s", result_path)
+
+    return TryOnHRVitonResponse(
+        result_id=result_id,
+        result_url=f"/static/results/{result_filename}",
+        backend="idm_vton",
+    )
+
+
 # ============ Demo endpoint (default model + 1 套 fixed clothes) ============
 
 # Default resources (1 套固定,用于论文 demo / 初次访问)
@@ -769,7 +859,7 @@ DEMO_CLOTHES = {
 }
 
 
-@app.post("/tryon/demo")
+@app.post("/tryon-api/demo")
 async def tryon_demo(gender: str = "female", category: str = "top") -> dict:
     """生成默认模特 + 默认衣服的试穿图(无需用户上传,论文 demo 用)。
 
@@ -813,7 +903,7 @@ async def tryon_demo(gender: str = "female", category: str = "top") -> dict:
     }
 
 
-@app.get("/tryon/result/{result_id}")
+@app.get("/tryon-api/result/{result_id}")
 async def get_tryon_result(result_id: str):
     """Get try-on result image."""
     result_file = _find_file(RESULT_DIR, "result", result_id)

@@ -1,4 +1,4 @@
-import React, { useState, useEffect } from 'react'
+import React, { useState, useEffect, useCallback } from 'react'
 import {
   Card,
   Row,
@@ -15,246 +15,286 @@ import {
   Divider,
   Tabs,
   Progress,
+  Alert,
+  Modal,
+  Form,
+  Select,
+  InputNumber,
+  message,
+  Tooltip,
 } from 'antd'
 import {
   UserOutlined,
   EditOutlined,
   HistoryOutlined,
-  HeartOutlined,
   SettingOutlined,
   LockOutlined,
   SafetyOutlined,
+  ReloadOutlined,
+  HeartOutlined,
+  BulbOutlined,
+  FireOutlined,
+  EyeOutlined,
+  ArrowRightOutlined,
 } from '@ant-design/icons'
 import type { ColumnsType } from 'antd/es/table'
 import { userAPI } from '../api'
+import type { User, UserProfile, HistoryEntry, ClothingItem } from '../api'
+import { useAuth } from '../context/AuthContext'
+import {
+  GENDER_LABELS,
+  BODY_SHAPE_LABELS,
+  BODY_SHAPE_COLORS,
+  SKIN_TONE_LABELS,
+  SKIN_TONE_SWATCHES,
+  CATEGORY_EMOJIS,
+  RELATION_COLORS,
+  genderLabel,
+  bodyShapeLabel,
+  skinToneLabel,
+  styleLabel,
+  categoryLabel,
+  relationLabel,
+  colorLabel,
+  colorHex,
+} from '../constants/labels'
 
 const { Title, Text } = Typography
 
-interface User {
-  id: number
-  username: string
-  email?: string
-  gender?: string
-  age?: number
-  height?: number
-  weight?: number
-  body_shape?: string
-  skin_tone?: string
-  preferred_style?: string
-  created_at?: string
-}
-
-interface UserProfile {
-  user_id: number
-  static_info: User
-  style_distribution: Record<string, number>
-  color_preferences: Record<string, number>
-  price_range: { min: number; max: number; avg: number }
-  interaction_count: number
-}
-
-interface BrowseHistoryItem {
-  id: number
+interface HistoryRow {
+  key: string
   clothing_id: number
   clothing_name: string
-  category: string
-  viewed_at: string
+  category?: string
+  relation_type: string
+  score?: number
+  timestamp?: string
 }
 
-interface FavoriteItem {
-  id: number
-  clothing_id: number
-  clothing_name: string
-  category: string
-  price: number
-  favorited_at: string
+/** Fallback profile shown when the backend is unreachable — clearly flagged in the UI. */
+const DEMO_PROFILE: UserProfile = {
+  user_id: 0,
+  static_info: {
+    username: '演示用户',
+    email: 'demo@example.com',
+    gender: 'female',
+    age: 28,
+    height: 165,
+    weight: 52,
+    body_shape: 'average',
+    skin_tone: 'fair',
+  },
+  style_distribution: {
+    minimalist: 0.35,
+    casual: 0.25,
+    sporty: 0.2,
+    business: 0.15,
+    vintage: 0.05,
+  },
+  color_preferences: { black: 28, white: 22, blue: 18, grey: 12, red: 8 },
+  price_range: { min: 100, max: 800, avg: 380 },
+  interaction_count: 156,
+}
+
+const formatTimestamp = (raw?: string | number): string => {
+  if (raw === undefined || raw === null || raw === '') return '-'
+  // Neo4j may hand back an epoch (seconds or milliseconds) or an ISO string.
+  const asNumber = typeof raw === 'number' ? raw : Number(raw)
+  if (!Number.isNaN(asNumber) && asNumber > 0) {
+    const ms = asNumber > 1e12 ? asNumber : asNumber * 1000
+    const d = new Date(ms)
+    if (!Number.isNaN(d.getTime())) return d.toLocaleString('zh-CN', { hour12: false })
+  }
+  const parsed = new Date(String(raw))
+  if (!Number.isNaN(parsed.getTime())) return parsed.toLocaleString('zh-CN', { hour12: false })
+  return String(raw)
 }
 
 const UserManagement: React.FC = () => {
-  const currentUserId = 1 // 模拟当前用户
+  const { user: authUser, refreshUser } = useAuth()
+  const currentUserId = authUser?.id
 
   const [loading, setLoading] = useState(true)
   const [profile, setProfile] = useState<UserProfile | null>(null)
-  const [browseHistory, setBrowseHistory] = useState<BrowseHistoryItem[]>([])
-  const [favorites, setFavorites] = useState<FavoriteItem[]>([])
+  const [staticInfo, setStaticInfo] = useState<Partial<User> | null>(null)
+  const [history, setHistory] = useState<HistoryRow[]>([])
+  const [recommendations, setRecommendations] = useState<ClothingItem[]>([])
+  const [recommendedStyles, setRecommendedStyles] = useState<string[]>([])
+  const [recsLoading, setRecsLoading] = useState(false)
+  const [stylesLoading, setStylesLoading] = useState(false)
+  const [recsError, setRecsError] = useState<string | null>(null)
+  const [stylesError, setStylesError] = useState<string | null>(null)
   const [activeTab, setActiveTab] = useState<string>('profile')
+  const [profileError, setProfileError] = useState<string | null>(null)
+  const [historyError, setHistoryError] = useState<string | null>(null)
+  const [isDemo, setIsDemo] = useState(false)
 
-  // 体型标签颜色
-  const bodyShapeColors: Record<string, string> = {
-    slim: 'cyan',
-    athletic: 'blue',
-    average: 'green',
-    curvy: 'orange',
-    plus_size: 'red',
-  }
+  const [editOpen, setEditOpen] = useState(false)
+  const [saving, setSaving] = useState(false)
+  const [form] = Form.useForm()
 
-  // 分类 emoji 映射
-  const categoryEmojis: Record<string, string> = {
-    top: '👕',
-    bottom: '👖',
-    dress: '👗',
-    outerwear: '🧥',
-    shoes: '👟',
-    accessories: '👜',
-  }
+  const loadProfile = useCallback(async () => {
+    if (!currentUserId) return
+    setLoading(true)
+    setProfileError(null)
+    setIsDemo(false)
 
-  // 获取用户资料
-  useEffect(() => {
-    fetchUserProfile()
-    fetchBrowseHistory()
-    fetchFavorites()
+    // The two sources are independent: /users/{id} is the authoritative account
+    // record (MySQL), /recommend/{id}/profile is the behaviour-derived profile
+    // (Neo4j). One failing must not blank out the other.
+    const [accountResult, behaviourResult] = await Promise.allSettled([
+      userAPI.getProfile(currentUserId),
+      userAPI.getFullProfile(currentUserId),
+    ])
+
+    const account =
+      accountResult.status === 'fulfilled' ? accountResult.value : null
+    const behaviour =
+      behaviourResult.status === 'fulfilled' ? behaviourResult.value : null
+
+    if (!account && !behaviour) {
+      setProfileError('无法连接后端服务，以下为演示数据。')
+      setIsDemo(true)
+      setProfile(DEMO_PROFILE)
+      setStaticInfo(DEMO_PROFILE.static_info)
+      setLoading(false)
+      return
+    }
+
+    if (!account) {
+      setProfileError('账号资料加载失败，仅显示行为偏好数据。')
+    } else if (!behaviour) {
+      setProfileError('偏好画像加载失败（Neo4j 可能未启动），仅显示账号资料。')
+    }
+
+    // Prefer the MySQL account record for demographics; the graph copy can be stale.
+    setStaticInfo({ ...(behaviour?.static_info ?? {}), ...(account ?? {}) })
+    setProfile(
+      behaviour ?? {
+        user_id: currentUserId,
+        static_info: account ?? {},
+        style_distribution: {},
+        color_preferences: {},
+        price_range: { min: 0, max: 0, avg: 0 },
+        interaction_count: 0,
+      }
+    )
+    setLoading(false)
   }, [currentUserId])
 
-  const fetchUserProfile = async () => {
-    setLoading(true)
+  const loadHistory = useCallback(async () => {
+    if (!currentUserId) return
+    setHistoryError(null)
     try {
-      const data = await userAPI.getProfile(currentUserId)
-      // 模拟完整的用户资料
-      setProfile({
-        user_id: currentUserId,
-        static_info: data,
-        style_distribution: {
-          '简约': 0.35,
-          '休闲': 0.25,
-          '运动': 0.20,
-          '商务': 0.15,
-          '复古': 0.05,
-        },
-        color_preferences: {
-          '黑色': 28,
-          '白色': 22,
-          '蓝色': 18,
-          '灰色': 12,
-          '红色': 8,
-          '其他': 12,
-        },
-        price_range: { min: 100, max: 800, avg: 380 },
-        interaction_count: 156,
-      })
-    } catch (error) {
-      console.error('Failed to fetch profile:', error)
-      // 即使API失败也显示模拟数据
-      setProfile({
-        user_id: currentUserId,
-        static_info: {
-          id: currentUserId,
-          username: '时尚达人',
-          email: 'user@example.com',
-          gender: '女',
-          age: 28,
-          height: 165,
-          weight: 52,
-          body_shape: 'average',
-          skin_tone: '白皙',
-          preferred_style: '简约休闲',
-        },
-        style_distribution: {
-          '简约': 0.35,
-          '休闲': 0.25,
-          '运动': 0.20,
-          '商务': 0.15,
-          '复古': 0.05,
-        },
-        color_preferences: {
-          '黑色': 28,
-          '白色': 22,
-          '蓝色': 18,
-          '灰色': 12,
-          '红色': 8,
-          '其他': 12,
-        },
-        price_range: { min: 100, max: 800, avg: 380 },
-        interaction_count: 156,
-      })
+      const entries: HistoryEntry[] = await userAPI.getHistory(currentUserId, 50)
+      setHistory(
+        entries.map((entry, index) => ({
+          key: `${entry.c?.id ?? 'x'}-${entry.relation_type}-${index}`,
+          clothing_id: entry.c?.id,
+          clothing_name: entry.c?.name ?? `商品 #${entry.c?.id ?? '?'}`,
+          category: entry.c?.category,
+          relation_type: entry.relation_type,
+          score: entry.score,
+          timestamp: entry.timestamp,
+        }))
+      )
+    } catch {
+      setHistory([])
+      setHistoryError('浏览历史加载失败，请确认后端与 Neo4j 已启动。')
+    }
+  }, [currentUserId])
+
+  const loadRecommendations = useCallback(async () => {
+    if (!currentUserId) return
+    setRecsError(null)
+    setRecsLoading(true)
+    try {
+      const list: any[] = await userAPI.getRecommendations(currentUserId, undefined, 12)
+      // 后端返回的 item 字段或平铺字段统一为 ClothingItem
+      const normalized: ClothingItem[] = list.map((r) => ({
+        id: r.clothing_id ?? r.id,
+        name: r.name ?? r.item?.name ?? `商品 #${r.clothing_id ?? r.id}`,
+        category: r.category ?? r.item?.category ?? '',
+        brand: r.brand ?? r.item?.brand,
+        price: r.price ?? r.item?.price ?? 0,
+        image_url: r.image_url ?? r.item?.image_url,
+      }))
+      setRecommendations(normalized)
+    } catch {
+      setRecommendations([])
+      setRecsError('推荐加载失败，请稍后重试。')
     } finally {
+      setRecsLoading(false)
+    }
+  }, [currentUserId])
+
+  const loadRecommendedStyles = useCallback(async () => {
+    if (!currentUserId) return
+    setStylesError(null)
+    setStylesLoading(true)
+    try {
+      const styles: string[] = await userAPI.getRecommendedStyles(currentUserId)
+      setRecommendedStyles(styles)
+    } catch {
+      setRecommendedStyles([])
+      setStylesError('推荐风格加载失败。')
+    } finally {
+      setStylesLoading(false)
+    }
+  }, [currentUserId])
+
+  useEffect(() => {
+    if (!currentUserId) {
       setLoading(false)
+      return
+    }
+    loadProfile()
+    loadHistory()
+    loadRecommendations()
+    loadRecommendedStyles()
+  }, [currentUserId, loadProfile, loadHistory, loadRecommendations, loadRecommendedStyles])
+
+  const openEdit = () => {
+    form.setFieldsValue({
+      gender: staticInfo?.gender,
+      age: staticInfo?.age,
+      height: staticInfo?.height,
+      weight: staticInfo?.weight,
+      body_shape: staticInfo?.body_shape,
+      skin_tone: staticInfo?.skin_tone,
+    })
+    setEditOpen(true)
+  }
+
+  const submitEdit = async () => {
+    if (!currentUserId) return
+    const values = await form.validateFields()
+    setSaving(true)
+    try {
+      const updated = await userAPI.updateProfile(currentUserId, values)
+      setStaticInfo((prev) => ({ ...(prev ?? {}), ...updated }))
+      await refreshUser()
+      message.success('资料已更新')
+      setEditOpen(false)
+    } catch (error: any) {
+      message.error(error?.response?.data?.detail || '保存失败，请稍后再试')
+    } finally {
+      setSaving(false)
     }
   }
 
-  const fetchBrowseHistory = async () => {
-    // 模拟浏览历史数据
-    setBrowseHistory([
-      {
-        id: 1,
-        clothing_id: 101,
-        clothing_name: '简约白色T恤',
-        category: 'top',
-        viewed_at: '2026-06-29 15:30',
-      },
-      {
-        id: 2,
-        clothing_id: 102,
-        clothing_name: '破洞牛仔裤',
-        category: 'bottom',
-        viewed_at: '2026-06-29 14:20',
-      },
-      {
-        id: 3,
-        clothing_id: 103,
-        clothing_name: '运动休闲鞋',
-        category: 'shoes',
-        viewed_at: '2026-06-28 20:15',
-      },
-      {
-        id: 4,
-        clothing_id: 104,
-        clothing_name: '轻薄风衣',
-        category: 'outerwear',
-        viewed_at: '2026-06-28 16:45',
-      },
-      {
-        id: 5,
-        clothing_id: 105,
-        clothing_name: '碎花连衣裙',
-        category: 'dress',
-        viewed_at: '2026-06-27 18:00',
-      },
-    ])
-  }
-
-  const fetchFavorites = async () => {
-    // 模拟收藏数据
-    setFavorites([
-      {
-        id: 1,
-        clothing_id: 201,
-        clothing_name: '韩版衬衫',
-        category: 'top',
-        price: 199,
-        favorited_at: '2026-06-28',
-      },
-      {
-        id: 2,
-        clothing_id: 202,
-        clothing_name: '高腰牛仔裤',
-        category: 'bottom',
-        price: 299,
-        favorited_at: '2026-06-27',
-      },
-      {
-        id: 3,
-        clothing_id: 203,
-        clothing_name: '复古手提包',
-        category: 'accessories',
-        price: 459,
-        favorited_at: '2026-06-25',
-      },
-    ])
-  }
-
-  // 风格偏好进度条
   const renderStylePreferences = () => {
-    if (!profile?.style_distribution) return null
+    const dist = profile?.style_distribution ?? {}
+    const entries = Object.entries(dist).sort(([, a], [, b]) => b - a)
 
     return (
       <Card title="风格偏好" style={{ marginBottom: 24 }}>
-        <Space direction="vertical" style={{ width: '100%' }} size="middle">
-          {Object.entries(profile.style_distribution)
-            .sort(([, a], [, b]) => b - a)
-            .map(([style, ratio]) => (
+        {entries.length > 0 ? (
+          <Space direction="vertical" style={{ width: '100%' }} size="middle">
+            {entries.map(([style, ratio]) => (
               <div key={style}>
                 <Row justify="space-between" align="middle">
-                  <Text>{style}</Text>
+                  <Text>{styleLabel(style)}</Text>
                   <Text type="secondary">{(ratio * 100).toFixed(0)}%</Text>
                 </Row>
                 <Progress
@@ -265,23 +305,27 @@ const UserManagement: React.FC = () => {
                 />
               </div>
             ))}
-        </Space>
+          </Space>
+        ) : (
+          <Empty
+            image={Empty.PRESENTED_IMAGE_SIMPLE}
+            description="暂无风格偏好数据，多浏览一些商品后即可生成"
+          />
+        )}
       </Card>
     )
   }
 
-  // 颜色偏好
   const renderColorPreferences = () => {
-    if (!profile?.color_preferences) return null
-
-    const total = Object.values(profile.color_preferences).reduce((a, b) => a + b, 0)
+    const prefs = profile?.color_preferences ?? {}
+    const entries = Object.entries(prefs).sort(([, a], [, b]) => b - a)
+    const total = entries.reduce((sum, [, count]) => sum + count, 0)
 
     return (
       <Card title="颜色偏好" style={{ marginBottom: 24 }}>
-        <Row gutter={[12, 12]}>
-          {Object.entries(profile.color_preferences)
-            .sort(([, a], [, b]) => b - a)
-            .map(([color, count]) => (
+        {total > 0 ? (
+          <Row gutter={[12, 12]}>
+            {entries.map(([color, count]) => (
               <Col span={12} key={color}>
                 <Row justify="space-between" align="middle">
                   <Space>
@@ -290,141 +334,291 @@ const UserManagement: React.FC = () => {
                         width: 16,
                         height: 16,
                         borderRadius: 4,
-                        background: getColorHex(color),
+                        background: colorHex(color),
                         border: '1px solid #d9d9d9',
                       }}
                     />
-                    <Text>{color}</Text>
+                    <Text>{colorLabel(color)}</Text>
                   </Space>
                   <Text type="secondary">{((count / total) * 100).toFixed(0)}%</Text>
                 </Row>
               </Col>
             ))}
+          </Row>
+        ) : (
+          <Empty
+            image={Empty.PRESENTED_IMAGE_SIMPLE}
+            description="暂无颜色偏好数据"
+          />
+        )}
+      </Card>
+    )
+  }
+
+  const renderRecommendations = () => {
+    if (recsLoading) {
+      return (
+        <div style={{ textAlign: 'center', padding: '60px 0' }}>
+          <Spin size="large" />
+          <div style={{ marginTop: 16 }}>正在为您挑选商品...</div>
+        </div>
+      )
+    }
+
+    if (recsError) {
+      return (
+        <Alert
+          type="error"
+          showIcon
+          message={recsError}
+          action={
+            <Button size="small" onClick={loadRecommendations}>
+              重试
+            </Button>
+          }
+        />
+      )
+    }
+
+    if (recommendations.length === 0) {
+      return (
+        <Empty description="暂无推荐，多浏览一些商品后系统会为您生成专属推荐">
+          <Button type="primary" onClick={() => window.location.assign('/clothing')}>
+            去逛逛
+          </Button>
+        </Empty>
+      )
+    }
+
+    return (
+      <Card>
+        <Row gutter={[16, 16]}>
+          {recommendations.map((item) => (
+            <Col xs={12} sm={12} md={8} lg={8} xl={6} key={item.id}>
+              <Card
+                hoverable
+                size="small"
+                cover={
+                  item.image_url ? (
+                    <div
+                      style={{
+                        height: 200,
+                        background: `#f5f5f5 url(${item.image_url}) center/cover no-repeat`,
+                      }}
+                    />
+                  ) : (
+                    <div
+                      style={{
+                        height: 200,
+                        background: '#f5f5f5',
+                        display: 'flex',
+                        alignItems: 'center',
+                        justifyContent: 'center',
+                        fontSize: 56,
+                      }}
+                    >
+                      {CATEGORY_EMOJIS[item.category] || '👕'}
+                    </div>
+                  )
+                }
+                onClick={() => window.location.assign(`/clothing/${item.id}`)}
+              >
+                <Card.Meta
+                  title={
+                    <Text ellipsis style={{ fontSize: 13 }}>
+                      {item.name}
+                    </Text>
+                  }
+                  description={
+                    <Space direction="vertical" size={4} style={{ width: '100%' }}>
+                      <Space size={4}>
+                        <Tag color="blue">{categoryLabel(item.category) || '其他'}</Tag>
+                        {item.brand && <Tag>{item.brand}</Tag>}
+                      </Space>
+                      <Row justify="space-between" align="middle">
+                        <Text strong style={{ color: '#f5222d' }}>
+                          ¥{item.price.toFixed(0)}
+                        </Text>
+                        <Button
+                          type="link"
+                          size="small"
+                          icon={<EyeOutlined />}
+                          onClick={(e) => {
+                            e.stopPropagation()
+                            window.location.assign(`/clothing/${item.id}`)
+                          }}
+                        >
+                          查看
+                        </Button>
+                      </Row>
+                    </Space>
+                  }
+                />
+              </Card>
+            </Col>
+          ))}
         </Row>
       </Card>
     )
   }
 
-  // 获取颜色对应的十六进制值
-  const getColorHex = (color: string): string => {
-    const colorMap: Record<string, string> = {
-      '黑色': '#000000',
-      '白色': '#FFFFFF',
-      '蓝色': '#1890ff',
-      '灰色': '#8c8c8c',
-      '红色': '#f5222d',
-      '绿色': '#52c41a',
-      '黄色': '#faad14',
-      '紫色': '#722ed1',
-      '粉色': '#eb2f96',
-      '橙色': '#fa8c16',
+  const renderRecommendedStyles = () => {
+    if (stylesLoading) {
+      return (
+        <div style={{ textAlign: 'center', padding: '60px 0' }}>
+          <Spin size="large" />
+        </div>
+      )
     }
-    return colorMap[color] || '#d9d9d9'
-  }
 
-  // 浏览历史表格列
-  const historyColumns: ColumnsType<BrowseHistoryItem> = [
-    {
-      title: '商品',
-      key: 'clothing',
-      render: (_, record) => (
-        <Space>
-          <div
-            style={{
-              width: 40,
-              height: 40,
-              background: '#f5f5f5',
-              borderRadius: 8,
-              display: 'flex',
-              alignItems: 'center',
-              justifyContent: 'center',
-              fontSize: 20,
-            }}
-          >
-            {categoryEmojis[record.category] || '👕'}
-          </div>
-          <Text>{record.clothing_name}</Text>
-        </Space>
-      ),
-    },
-    {
-      title: '分类',
-      dataIndex: 'category',
-      key: 'category',
-      render: (cat) => <Tag>{cat}</Tag>,
-    },
-    {
-      title: '浏览时间',
-      dataIndex: 'viewed_at',
-      key: 'viewed_at',
-      render: (time) => <Text type="secondary">{time}</Text>,
-    },
-    {
-      title: '操作',
-      key: 'action',
-      render: () => (
-        <Button type="link" size="small">
-          查看详情
-        </Button>
-      ),
-    },
-  ]
+    if (stylesError) {
+      return (
+        <Alert
+          type="error"
+          showIcon
+          message={stylesError}
+          action={
+            <Button size="small" onClick={loadRecommendedStyles}>
+              重试
+            </Button>
+          }
+        />
+      )
+    }
 
-  // 收藏表格列
-  const favoriteColumns: ColumnsType<FavoriteItem> = [
-    {
-      title: '商品',
-      key: 'clothing',
-      render: (_, record) => (
-        <Space>
-          <div
-            style={{
-              width: 40,
-              height: 40,
-              background: '#f5f5f5',
-              borderRadius: 8,
-              display: 'flex',
-              alignItems: 'center',
-              justifyContent: 'center',
-              fontSize: 20,
-            }}
+    if (recommendedStyles.length === 0) {
+      return (
+        <Empty description="暂无可推荐风格，完善身材资料后即可生成">
+          <Button type="primary" onClick={openEdit}>
+            去完善资料
+          </Button>
+        </Empty>
+      )
+    }
+
+    const styleColors: Record<string, string> = {
+      minimalist: '#1890ff',
+      casual: '#52c41a',
+      sporty: '#f5222d',
+      business: '#722ed1',
+      vintage: '#fa8c16',
+      streetwear: '#eb2f96',
+      romantic: '#eb2f96',
+      bohemian: '#13c2c2',
+    }
+
+    return (
+      <Card>
+        <Space direction="vertical" size="middle" style={{ width: '100%' }}>
+          <Text type="secondary">
+            基于您的「体型」与「风格偏好」综合推断，以下风格可能适合您：
+          </Text>
+          <Row gutter={[12, 12]}>
+            {recommendedStyles.map((style) => (
+              <Col key={style}>
+                <Tag
+                  color={styleColors[style] || 'blue'}
+                  style={{
+                    padding: '8px 16px',
+                    fontSize: 14,
+                    borderRadius: 20,
+                  }}
+                  icon={<HeartOutlined />}
+                >
+                  {styleLabel(style)}
+                </Tag>
+              </Col>
+            ))}
+          </Row>
+          <Divider style={{ margin: '12px 0' }} />
+          <Button
+            type="link"
+            icon={<ArrowRightOutlined />}
+            onClick={() => window.location.assign('/clothing')}
           >
-            {categoryEmojis[record.category] || '👕'}
-          </div>
-          <Text>{record.clothing_name}</Text>
-        </Space>
-      ),
-    },
-    {
-      title: '分类',
-      dataIndex: 'category',
-      key: 'category',
-      render: (cat) => <Tag color="blue">{cat}</Tag>,
-    },
-    {
-      title: '价格',
-      dataIndex: 'price',
-      key: 'price',
-      render: (price) => <Text strong style={{ color: '#f5222d' }}>¥{price}</Text>,
-    },
-    {
-      title: '收藏时间',
-      dataIndex: 'favorited_at',
-      key: 'favorited_at',
-      render: (time) => <Text type="secondary">{time}</Text>,
-    },
-    {
-      title: '操作',
-      key: 'action',
-      render: () => (
-        <Space>
-          <Button type="link" size="small" danger>
-            取消收藏
+            按这些风格浏览更多商品 →
           </Button>
         </Space>
+      </Card>
+    )
+  }
+
+  const historyColumns: ColumnsType<HistoryRow> = [
+    {
+      title: '商品',
+      key: 'clothing',
+      render: (_, record) => (
+        <Space>
+          <div
+            style={{
+              width: 40,
+              height: 40,
+              background: '#f5f5f5',
+              borderRadius: 8,
+              display: 'flex',
+              alignItems: 'center',
+              justifyContent: 'center',
+              fontSize: 20,
+            }}
+          >
+            {CATEGORY_EMOJIS[record.category ?? ''] || '👕'}
+          </div>
+          <Text>{record.clothing_name}</Text>
+        </Space>
       ),
     },
+    {
+      title: '分类',
+      dataIndex: 'category',
+      key: 'category',
+      render: (cat?: string) => <Tag>{categoryLabel(cat)}</Tag>,
+    },
+    {
+      title: '行为',
+      dataIndex: 'relation_type',
+      key: 'relation_type',
+      render: (type: string, record) => (
+        <Space size={4}>
+          <Tag color={RELATION_COLORS[type] ?? 'default'}>{relationLabel(type)}</Tag>
+          {record.score !== undefined && record.score !== null && (
+            <Text type="secondary">{record.score} 分</Text>
+          )}
+        </Space>
+      ),
+    },
+    {
+      title: '时间',
+      dataIndex: 'timestamp',
+      key: 'timestamp',
+      render: (time?: string) => <Text type="secondary">{formatTimestamp(time)}</Text>,
+    },
+    {
+      title: '操作',
+      key: 'action',
+      render: (_, record) =>
+        record.clothing_id ? (
+          <Button
+            type="link"
+            size="small"
+            onClick={() => window.location.assign(`/clothing/${record.clothing_id}`)}
+          >
+            查看详情
+          </Button>
+        ) : null,
+    },
   ]
+
+  if (!currentUserId) {
+    return (
+      <div style={{ padding: '80px 0', textAlign: 'center' }}>
+        <Empty description="请先登录后查看个人中心">
+          <Button type="primary" onClick={() => window.location.assign('/login')}>
+            去登录
+          </Button>
+        </Empty>
+      </div>
+    )
+  }
 
   if (loading) {
     return (
@@ -435,19 +629,49 @@ const UserManagement: React.FC = () => {
     )
   }
 
+  const priceRange = profile?.price_range
+  const hasPriceData = !!priceRange && priceRange.max > 0
+
   return (
     <div style={{ padding: '0 0 24px 0' }}>
-      {/* 标题 */}
       <div style={{ marginBottom: 24 }}>
-        <Title level={3} style={{ margin: 0 }}>
-          <Badge color="green" />
-          个人中心
-        </Title>
-        <Text type="secondary">管理您的个人信息和偏好设置</Text>
+        <Row justify="space-between" align="middle">
+          <div>
+            <Title level={3} style={{ margin: 0 }}>
+              <Badge color="green" />
+              个人中心
+            </Title>
+            <Text type="secondary">管理您的个人信息和偏好设置</Text>
+          </div>
+          <Button
+            icon={<ReloadOutlined />}
+            onClick={() => {
+              loadProfile()
+              loadHistory()
+              loadRecommendations()
+              loadRecommendedStyles()
+            }}
+          >
+            刷新
+          </Button>
+        </Row>
       </div>
 
+      {profileError && (
+        <Alert
+          type={isDemo ? 'warning' : 'info'}
+          showIcon
+          style={{ marginBottom: 16 }}
+          message={profileError}
+          action={
+            <Button size="small" onClick={loadProfile}>
+              重试
+            </Button>
+          }
+        />
+      )}
+
       <Row gutter={24}>
-        {/* 左侧 - 用户信息 */}
         <Col xs={24} lg={8}>
           <Card>
             <div style={{ textAlign: 'center', marginBottom: 24 }}>
@@ -457,12 +681,9 @@ const UserManagement: React.FC = () => {
                 style={{ backgroundColor: '#1890ff', marginBottom: 16 }}
               />
               <Title level={4} style={{ margin: 0 }}>
-                {profile?.static_info?.username || '用户'}
+                {staticInfo?.username || authUser?.username || '用户'}
               </Title>
-              <Text type="secondary">{profile?.static_info?.email}</Text>
-              <div style={{ marginTop: 8 }}>
-                <Tag color="blue">{profile?.static_info?.preferred_style || '简约休闲'}</Tag>
-              </div>
+              <Text type="secondary">{staticInfo?.email || authUser?.email || '-'}</Text>
             </div>
 
             <Divider />
@@ -470,65 +691,81 @@ const UserManagement: React.FC = () => {
             <Space direction="vertical" style={{ width: '100%' }} size="small">
               <Row justify="space-between">
                 <Text type="secondary">性别</Text>
-                <Text>{profile?.static_info?.gender || '-'}</Text>
+                <Text>{genderLabel(staticInfo?.gender)}</Text>
               </Row>
               <Row justify="space-between">
                 <Text type="secondary">年龄</Text>
-                <Text>{profile?.static_info?.age || '-'} 岁</Text>
+                <Text>{staticInfo?.age ? `${staticInfo.age} 岁` : '-'}</Text>
               </Row>
               <Row justify="space-between">
                 <Text type="secondary">身高</Text>
-                <Text>{profile?.static_info?.height || '-'} cm</Text>
+                <Text>{staticInfo?.height ? `${staticInfo.height} cm` : '-'}</Text>
               </Row>
               <Row justify="space-between">
                 <Text type="secondary">体重</Text>
-                <Text>{profile?.static_info?.weight || '-'} kg</Text>
+                <Text>{staticInfo?.weight ? `${staticInfo.weight} kg` : '-'}</Text>
               </Row>
               <Row justify="space-between">
                 <Text type="secondary">体型</Text>
-                <Tag color={bodyShapeColors[profile?.static_info?.body_shape || ''] || 'default'}>
-                  {profile?.static_info?.body_shape || '未知'}
+                <Tag color={BODY_SHAPE_COLORS[staticInfo?.body_shape ?? ''] || 'default'}>
+                  {bodyShapeLabel(staticInfo?.body_shape)}
                 </Tag>
               </Row>
-              <Row justify="space-between">
-                <Text type="secondary">肤质</Text>
-                <Text>{profile?.static_info?.skin_tone || '-'}</Text>
+              <Row justify="space-between" align="middle">
+                <Tooltip title="用于色彩搭配推荐，非肤质">
+                  <Text type="secondary">肤色</Text>
+                </Tooltip>
+                <Space size={6}>
+                  <div
+                    style={{
+                      width: 14,
+                      height: 14,
+                      borderRadius: '50%',
+                      background: SKIN_TONE_SWATCHES[staticInfo?.skin_tone ?? ''] || '#f0f0f0',
+                      border: '1px solid #d9d9d9',
+                    }}
+                  />
+                  <Text>{skinToneLabel(staticInfo?.skin_tone)}</Text>
+                </Space>
               </Row>
             </Space>
 
             <Divider />
 
-            <Space style={{ width: '100%' }}>
-              <Button icon={<EditOutlined />} block>
-                编辑资料
-              </Button>
-            </Space>
+            <Button icon={<EditOutlined />} block onClick={openEdit} disabled={isDemo}>
+              编辑资料
+            </Button>
           </Card>
 
-          {/* 消费偏好 */}
           <Card title="消费偏好" style={{ marginTop: 24 }}>
-            <Space direction="vertical" style={{ width: '100%' }} size="middle">
-              <Row justify="space-between">
-                <Text type="secondary">价格区间</Text>
-                <Text>
-                  ¥{profile?.price_range?.min || 0} - ¥{profile?.price_range?.max || 0}
-                </Text>
-              </Row>
-              <Row justify="space-between">
-                <Text type="secondary">平均消费</Text>
-                <Text strong style={{ color: '#f5222d' }}>
-                  ¥{profile?.price_range?.avg?.toFixed(0) || 0}
-                </Text>
-              </Row>
-              <Row justify="space-between">
-                <Text type="secondary">交互次数</Text>
-                <Badge count={profile?.interaction_count || 0} showZero />
-              </Row>
-            </Space>
+            {hasPriceData ? (
+              <Space direction="vertical" style={{ width: '100%' }} size="middle">
+                <Row justify="space-between">
+                  <Text type="secondary">价格区间</Text>
+                  <Text>
+                    ¥{priceRange!.min.toFixed(0)} - ¥{priceRange!.max.toFixed(0)}
+                  </Text>
+                </Row>
+                <Row justify="space-between">
+                  <Text type="secondary">平均消费</Text>
+                  <Text strong style={{ color: '#f5222d' }}>
+                    ¥{priceRange!.avg.toFixed(0)}
+                  </Text>
+                </Row>
+                <Row justify="space-between">
+                  <Text type="secondary">交互次数</Text>
+                  <Badge count={profile?.interaction_count || 0} showZero />
+                </Row>
+              </Space>
+            ) : (
+              <Empty
+                image={Empty.PRESENTED_IMAGE_SIMPLE}
+                description="暂无消费数据"
+              />
+            )}
           </Card>
         </Col>
 
-        {/* 右侧 - Tab切换 */}
         <Col xs={24} lg={16}>
           <Tabs
             activeKey={activeTab}
@@ -551,32 +788,34 @@ const UserManagement: React.FC = () => {
                       <Space direction="vertical" style={{ width: '100%' }}>
                         <Row align="middle" gutter={12}>
                           <LockOutlined style={{ fontSize: 20, color: '#1890ff' }} />
-                          <div style={{ flex: 1 }}>
+                          <div style={{ flex: 1, marginLeft: 12 }}>
                             <Text strong>登录密码</Text>
                             <br />
                             <Text type="secondary" style={{ fontSize: 12 }}>
                               已设置
                             </Text>
                           </div>
-                          <Button type="link" icon={<EditOutlined />}>
-                            修改
-                          </Button>
+                          <Tag color="default">近期上线</Tag>
                         </Row>
                         <Divider style={{ margin: '12px 0' }} />
                         <Row align="middle" gutter={12}>
                           <SafetyOutlined style={{ fontSize: 20, color: '#52c41a' }} />
-                          <div style={{ flex: 1 }}>
+                          <div style={{ flex: 1, marginLeft: 12 }}>
                             <Text strong>绑定手机</Text>
                             <br />
                             <Text type="secondary" style={{ fontSize: 12 }}>
-                              138****8888
+                              未绑定
                             </Text>
                           </div>
-                          <Button type="link" icon={<EditOutlined />}>
-                            修改
-                          </Button>
+                          <Tag color="default">近期上线</Tag>
                         </Row>
                       </Space>
+                      <Alert
+                        type="info"
+                        showIcon
+                        style={{ marginTop: 16 }}
+                        message="账号安全相关操作(改密 / 绑手机)正在完善中，敬请期待。"
+                      />
                     </Card>
                   </div>
                 ),
@@ -586,48 +825,36 @@ const UserManagement: React.FC = () => {
                 label: (
                   <Space>
                     <HistoryOutlined />
-                    浏览历史
-                    <Badge count={browseHistory.length} size="small" />
+                    行为记录
+                    <Badge count={history.length} size="small" />
                   </Space>
                 ),
                 children: (
                   <Card>
-                    {browseHistory.length > 0 ? (
+                    {historyError && (
+                      <Alert
+                        type="info"
+                        showIcon
+                        style={{ marginBottom: 16 }}
+                        message={historyError}
+                        action={
+                          <Button size="small" onClick={loadHistory}>
+                            重试
+                          </Button>
+                        }
+                      />
+                    )}
+                    {history.length > 0 ? (
                       <Table
                         columns={historyColumns}
-                        dataSource={browseHistory}
-                        rowKey="id"
-                        pagination={{ pageSize: 5 }}
+                        dataSource={history}
+                        rowKey="key"
+                        pagination={{ pageSize: 10 }}
                         size="small"
                       />
                     ) : (
-                      <Empty description="暂无浏览记录" />
-                    )}
-                  </Card>
-                ),
-              },
-              {
-                key: 'favorites',
-                label: (
-                  <Space>
-                    <HeartOutlined />
-                    我的收藏
-                    <Badge count={favorites.length} size="small" />
-                  </Space>
-                ),
-                children: (
-                  <Card>
-                    {favorites.length > 0 ? (
-                      <Table
-                        columns={favoriteColumns}
-                        dataSource={favorites}
-                        rowKey="id"
-                        pagination={{ pageSize: 5 }}
-                        size="small"
-                      />
-                    ) : (
-                      <Empty description="暂无收藏">
-                        <Button type="primary" onClick={() => window.location.href = '/clothing'}>
+                      <Empty description="暂无行为记录">
+                        <Button type="primary" onClick={() => window.location.assign('/clothing')}>
                           去逛逛
                         </Button>
                       </Empty>
@@ -645,6 +872,12 @@ const UserManagement: React.FC = () => {
                 ),
                 children: (
                   <Card title="消息通知">
+                    <Alert
+                      type="info"
+                      showIcon
+                      message="通知偏好(推荐通知 / 活动通知)正在完善中，敬请期待。"
+                      style={{ marginBottom: 16 }}
+                    />
                     <Space direction="vertical" style={{ width: '100%' }}>
                       <Row justify="space-between" align="middle">
                         <div>
@@ -654,7 +887,7 @@ const UserManagement: React.FC = () => {
                             接收个性化商品推荐
                           </Text>
                         </div>
-                        <Tag color="green">已开启</Tag>
+                        <Tag color="default">近期上线</Tag>
                       </Row>
                       <Divider style={{ margin: '12px 0' }} />
                       <Row justify="space-between" align="middle">
@@ -665,27 +898,116 @@ const UserManagement: React.FC = () => {
                             接收促销活动和优惠信息
                           </Text>
                         </div>
-                        <Tag color="green">已开启</Tag>
-                      </Row>
-                      <Divider style={{ margin: '12px 0' }} />
-                      <Row justify="space-between" align="middle">
-                        <div>
-                          <Text strong>物流通知</Text>
-                          <br />
-                          <Text type="secondary" style={{ fontSize: 12 }}>
-                            订单发货和收货提醒
-                          </Text>
-                        </div>
-                        <Tag color="green">已开启</Tag>
+                        <Tag color="default">近期上线</Tag>
                       </Row>
                     </Space>
                   </Card>
                 ),
               },
+              {
+                key: 'recommend',
+                label: (
+                  <Space>
+                    <FireOutlined />
+                    为我推荐
+                    <Badge count={recommendations.length} size="small" showZero={false} />
+                  </Space>
+                ),
+                children: renderRecommendations(),
+              },
+              {
+                key: 'styles',
+                label: (
+                  <Space>
+                    <BulbOutlined />
+                    推荐风格
+                    <Badge count={recommendedStyles.length} size="small" showZero={false} />
+                  </Space>
+                ),
+                children: renderRecommendedStyles(),
+              },
             ]}
           />
         </Col>
       </Row>
+
+      <Modal
+        title="编辑资料"
+        open={editOpen}
+        onCancel={() => setEditOpen(false)}
+        onOk={submitEdit}
+        confirmLoading={saving}
+        okText="保存"
+        cancelText="取消"
+        destroyOnClose
+      >
+        <Form form={form} layout="vertical" preserve={false}>
+          <Form.Item name="gender" label="性别">
+            <Select allowClear placeholder="请选择">
+              {Object.entries(GENDER_LABELS).map(([value, label]) => (
+                <Select.Option key={value} value={value}>
+                  {label}
+                </Select.Option>
+              ))}
+            </Select>
+          </Form.Item>
+          <Form.Item
+            name="age"
+            label="年龄"
+            rules={[{ type: 'number', min: 10, max: 100, message: '年龄需在 10-100 之间' }]}
+          >
+            <InputNumber style={{ width: '100%' }} addonAfter="岁" />
+          </Form.Item>
+          <Form.Item
+            name="height"
+            label="身高"
+            rules={[{ type: 'number', min: 100, max: 250, message: '身高需在 100-250cm 之间' }]}
+          >
+            <InputNumber style={{ width: '100%' }} addonAfter="cm" />
+          </Form.Item>
+          <Form.Item
+            name="weight"
+            label="体重"
+            rules={[{ type: 'number', min: 25, max: 250, message: '体重需在 25-250kg 之间' }]}
+          >
+            <InputNumber style={{ width: '100%' }} addonAfter="kg" />
+          </Form.Item>
+          <Form.Item name="body_shape" label="体型">
+            <Select allowClear placeholder="请选择">
+              {Object.entries(BODY_SHAPE_LABELS).map(([value, label]) => (
+                <Select.Option key={value} value={value}>
+                  {label}
+                </Select.Option>
+              ))}
+            </Select>
+          </Form.Item>
+          <Form.Item
+            name="skin_tone"
+            label="肤色"
+            tooltip="用于色彩搭配推荐"
+          >
+            <Select allowClear placeholder="请选择">
+              {Object.entries(SKIN_TONE_LABELS).map(([value, label]) => (
+                <Select.Option key={value} value={value}>
+                  <Space>
+                    <span
+                      style={{
+                        display: 'inline-block',
+                        width: 12,
+                        height: 12,
+                        borderRadius: '50%',
+                        background: SKIN_TONE_SWATCHES[value],
+                        border: '1px solid #d9d9d9',
+                      }}
+                    />
+                    {label}
+                  </Space>
+                </Select.Option>
+              ))}
+            </Select>
+          </Form.Item>
+        </Form>
+      </Modal>
     </div>
   )
 }

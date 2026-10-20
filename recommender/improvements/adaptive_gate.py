@@ -1,4 +1,4 @@
-"""Improvement A: Adaptive Gated Fusion.
+"""Improvement A: Adaptive Gated Fusion (Fixed).
 
 This module implements the adaptive gated fusion mechanism that dynamically
 adjusts fusion weights based on user interaction count and modality confidence.
@@ -12,6 +12,9 @@ When interaction count is low (cold start):
     - Increases KG and MM weights
 
 This addresses Research Question 1: Cold Start Problem.
+
+FIX: When MM is unavailable (use_mm=False), gate only uses CF+KG 2-way softmax
+to prevent wasting capacity on zero-vector MM features.
 """
 import torch
 import torch.nn as nn
@@ -35,6 +38,8 @@ class AdaptiveGate(nn.Module):
         output_dim: Optional[int] = None,
         use_confidence: bool = True,
         use_interaction_count: bool = True,
+        use_mm: bool = True,
+        use_processors: bool = False,
     ):
         """
         Initialize Adaptive Gate.
@@ -49,6 +54,11 @@ class AdaptiveGate(nn.Module):
                 this dimension so the weighted sum is well-defined.
             use_confidence: Whether to use confidence scores
             use_interaction_count: Whether to use interaction counts
+            use_mm: Whether MM channel is available. If False, only CF+KG 2-way gate.
+            use_processors: If True, create cf/kg/mm_processor MLPs (legacy
+                checkpoints trained before 2026-07-29). Default False (B-route:
+                gate directly on raw features). Must be True to load abl_m1/m2/m3
+                checkpoints verbatim with strict=True.
         """
         super().__init__()
 
@@ -59,36 +69,62 @@ class AdaptiveGate(nn.Module):
         self.output_dim = output_dim if output_dim is not None else cf_dim
         self.use_confidence = use_confidence
         self.use_interaction_count = use_interaction_count
+        self.use_mm = use_mm
 
-        total_dim = cf_dim + kg_dim + mm_dim
+        # Number of gates: 3 if MM, else 2
+        self.n_gates = 3 if use_mm else 2
+
+        # The gate input dim
+        if use_mm:
+            total_dim = cf_dim + kg_dim + mm_dim
+        else:
+            total_dim = cf_dim + kg_dim
 
         # Gate network: computes weight for each modality
         self.gate_network = nn.Sequential(
             nn.Linear(total_dim, hidden_dim),
             nn.ReLU(),
             nn.Dropout(0.1),
-            nn.Linear(hidden_dim, 3),  # 3 gates: CF, KG, MM
+            nn.Linear(hidden_dim, self.n_gates),  # dynamic output size
         )
 
         # Modality-specific processors — all project to output_dim so the
         # weighted fusion sums tensors of the same shape.
-        self.cf_processor = nn.Sequential(
-            nn.Linear(cf_dim, hidden_dim),
-            nn.ReLU(),
-            nn.Linear(hidden_dim, self.output_dim),
-        )
+        # B-route (use_processors=False): skip these MLPs, gate directly on raw features.
+        # Reason: cf_processor / kg_processor add 2 nonlinear MLPs between the
+        # signal and the BPR loss, which empirically causes the signal to weaken
+        # (see §4.4.6 algorithm review). With raw cf_emb/kg_emb the gate
+        # directly learns which channel to trust.
+        # Legacy abl_m1/m2/m3 (pre-2026-07-29) checkpoints were trained with
+        # use_processors=True; loading them with strict=True requires the same.
+        self.use_processors = use_processors
 
-        self.kg_processor = nn.Sequential(
-            nn.Linear(kg_dim, hidden_dim),
-            nn.ReLU(),
-            nn.Linear(hidden_dim, self.output_dim),
-        )
-
-        self.mm_processor = nn.Sequential(
-            nn.Linear(mm_dim, hidden_dim),
-            nn.ReLU(),
-            nn.Linear(hidden_dim, self.output_dim),
-        )
+        # When use_processors=False, gate output needs cf_dim and kg_dim to be equal.
+        # KG path dims (kg_dim = embedding_dim * n_hops) may differ from cf_dim.
+        # We project the KG branch into cf_dim only when use_processors=False.
+        if not self.use_processors:
+            # Project kg features to cf_dim for unified fusion
+            self.kg_align = nn.Linear(kg_dim, cf_dim) if kg_dim != cf_dim else nn.Identity()
+            # If MM enabled, also project mm to cf_dim
+            if use_mm:
+                self.mm_align = nn.Linear(mm_dim, cf_dim) if mm_dim != cf_dim else nn.Identity()
+        else:
+            self.cf_processor = nn.Sequential(
+                nn.Linear(cf_dim, hidden_dim),
+                nn.ReLU(),
+                nn.Linear(hidden_dim, self.output_dim),
+            )
+            self.kg_processor = nn.Sequential(
+                nn.Linear(kg_dim, hidden_dim),
+                nn.ReLU(),
+                nn.Linear(hidden_dim, self.output_dim),
+            )
+            if use_mm:
+                self.mm_processor = nn.Sequential(
+                    nn.Linear(mm_dim, hidden_dim),
+                    nn.ReLU(),
+                    nn.Linear(hidden_dim, self.output_dim),
+                )
 
         # Interaction count embedding (for cold start detection)
         if use_interaction_count:
@@ -108,7 +144,7 @@ class AdaptiveGate(nn.Module):
         self,
         cf_features: torch.Tensor,
         kg_features: torch.Tensor,
-        mm_features: torch.Tensor,
+        mm_features: Optional[torch.Tensor] = None,
         interaction_counts: Optional[torch.Tensor] = None,
         cf_confidence: Optional[torch.Tensor] = None,
     ) -> Tuple[torch.Tensor, dict]:
@@ -118,7 +154,7 @@ class AdaptiveGate(nn.Module):
         Args:
             cf_features: CF embeddings [batch, cf_dim]
             kg_features: KG embeddings [batch, kg_dim]
-            mm_features: MM embeddings [batch, mm_dim]
+            mm_features: MM embeddings [batch, mm_dim] (optional, ignored if use_mm=False)
             interaction_counts: User interaction counts [batch] (used for cold start detection)
             cf_confidence: CF confidence scores [batch] (from CF module)
 
@@ -127,11 +163,16 @@ class AdaptiveGate(nn.Module):
         """
         batch_size = cf_features.size(0)
 
-        # Concatenate all features
-        concat_features = torch.cat([cf_features, kg_features, mm_features], dim=-1)
+        # Build gate input
+        if self.use_mm:
+            if mm_features is None:
+                mm_features = torch.zeros_like(cf_features)
+            concat_features = torch.cat([cf_features, kg_features, mm_features], dim=-1)
+        else:
+            concat_features = torch.cat([cf_features, kg_features], dim=-1)
 
         # Compute base gates
-        gates = self.gate_network(concat_features)  # [batch, 3]
+        gates = self.gate_network(concat_features)  # [batch, n_gates]
 
         # Modulate gates based on cold start signals
         if self.use_interaction_count and interaction_counts is not None:
@@ -146,12 +187,17 @@ class AdaptiveGate(nn.Module):
             cold_adjustment = cold_mask.unsqueeze(-1)  # [batch, 1]
 
             # Adjust gates: CF down, KG/MM up when cold
-            gate_adjustment = torch.tensor([
-                -0.5,  # Reduce CF
-                0.3,   # Increase KG
-                0.3,   # Increase MM
-            ], device=gates.device)
-
+            if self.use_mm:
+                gate_adjustment = torch.tensor([
+                    -0.5,  # Reduce CF
+                    0.3,   # Increase KG
+                    0.3,   # Increase MM
+                ], device=gates.device)
+            else:
+                gate_adjustment = torch.tensor([
+                    -0.5,  # Reduce CF
+                    0.5,   # Increase KG (heavier since MM not available)
+                ], device=gates.device)
             gates = gates + cold_adjustment * gate_adjustment
 
         # Apply confidence modulation
@@ -161,27 +207,48 @@ class AdaptiveGate(nn.Module):
             gates[:, 0] = gates[:, 0] * cf_confidence_adj.squeeze(-1)
 
         # Apply softmax to get valid probability weights
-        gate_weights = F.softmax(gates, dim=-1)  # [batch, 3]
+        gate_weights = F.softmax(gates, dim=-1)  # [batch, n_gates]
 
-        # Process each modality
-        cf_processed = self.cf_processor(cf_features)
-        kg_processed = self.kg_processor(kg_features)
-        mm_processed = self.mm_processor(mm_features)
-
-        # Weighted fusion
-        fused = (
-            gate_weights[:, 0:1] * cf_processed +
-            gate_weights[:, 1:2] * kg_processed +
-            gate_weights[:, 2:3] * mm_processed
-        )
+        # Process each modality (B-route: skip processors, project for dim alignment)
+        if not self.use_processors:
+            cf_processed = cf_features  # raw cf embedding (64-dim)
+            kg_processed = self.kg_align(kg_features)  # project to 64-dim
+            if self.use_mm:
+                mm_processed = self.mm_align(mm_features) if mm_features is not None else torch.zeros_like(cf_features)
+                fused = (
+                    gate_weights[:, 0:1] * cf_processed +
+                    gate_weights[:, 1:2] * kg_processed +
+                    gate_weights[:, 2:3] * mm_processed
+                )
+            else:
+                fused = (
+                    gate_weights[:, 0:1] * cf_processed +
+                    gate_weights[:, 1:2] * kg_processed
+                )
+        else:
+            cf_processed = self.cf_processor(cf_features)
+            kg_processed = self.kg_processor(kg_features)
+            if self.use_mm:
+                mm_processed = self.mm_processor(mm_features) if mm_features is not None else torch.zeros_like(cf_processed)
+                fused = (
+                    gate_weights[:, 0:1] * cf_processed +
+                    gate_weights[:, 1:2] * kg_processed +
+                    gate_weights[:, 2:3] * mm_processed
+                )
+            else:
+                fused = (
+                    gate_weights[:, 0:1] * cf_processed +
+                    gate_weights[:, 1:2] * kg_processed
+                )
 
         # Metrics for monitoring
         metrics = {
             'gate_cf_mean': gate_weights[:, 0].mean().item(),
             'gate_kg_mean': gate_weights[:, 1].mean().item(),
-            'gate_mm_mean': gate_weights[:, 2].mean().item(),
-            'gate_cf_std': gate_weights[:, 0].std().item(),
         }
+        if self.use_mm:
+            metrics['gate_mm_mean'] = gate_weights[:, 2].mean().item()
+        metrics['gate_cf_std'] = gate_weights[:, 0].std().item()
 
         if interaction_counts is not None:
             metrics['interaction_mean'] = interaction_counts.float().mean().item()
@@ -193,11 +260,16 @@ class AdaptiveGate(nn.Module):
         self,
         cf_features: torch.Tensor,
         kg_features: torch.Tensor,
-        mm_features: torch.Tensor,
+        mm_features: Optional[torch.Tensor] = None,
         interaction_counts: Optional[torch.Tensor] = None,
     ) -> torch.Tensor:
         """Get raw gate weights without fusion (for analysis)."""
-        concat_features = torch.cat([cf_features, kg_features, mm_features], dim=-1)
+        if self.use_mm:
+            if mm_features is None:
+                mm_features = torch.zeros_like(cf_features)
+            concat_features = torch.cat([cf_features, kg_features, mm_features], dim=-1)
+        else:
+            concat_features = torch.cat([cf_features, kg_features], dim=-1)
         gates = self.gate_network(concat_features)
         return F.softmax(gates, dim=-1)
 
@@ -215,6 +287,8 @@ class AdaptiveGateModule(nn.Module):
         mm_dim: int = 64,
         hidden_dim: int = 32,
         output_dim: Optional[int] = None,
+        use_mm: bool = True,
+        use_processors: bool = False,
     ):
         """
         Initialize Adaptive Gate Module.
@@ -225,6 +299,8 @@ class AdaptiveGateModule(nn.Module):
             mm_dim: MM feature dimension
             hidden_dim: Hidden dimension for gate network
             output_dim: Unified output dimension (defaults to cf_dim)
+            use_mm: Whether MM channel is active. If False, gate uses 2-way softmax.
+            use_processors: legacy — True for abl_m1/m2/m3 checkpoints (pre-2026-07-29).
         """
         super().__init__()
 
@@ -236,13 +312,15 @@ class AdaptiveGateModule(nn.Module):
             output_dim=output_dim,
             use_confidence=True,
             use_interaction_count=True,
+            use_mm=use_mm,
+            use_processors=use_processors,
         )
 
     def forward(
         self,
         cf_features: torch.Tensor,
         kg_features: torch.Tensor,
-        mm_features: torch.Tensor,
+        mm_features: Optional[torch.Tensor] = None,
         interaction_counts: Optional[torch.Tensor] = None,
         cf_confidence: Optional[torch.Tensor] = None,
     ) -> Tuple[torch.Tensor, dict]:

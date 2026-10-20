@@ -1,0 +1,54 @@
+[
+  {
+    "tag": "abl_m1",
+    "normfix_cov_items": 64,
+    "normfix_cov_ratio": 0.0029516210856431304,
+    "config": {
+      "mm": true,
+      "a": 1,
+      "b": 0,
+      "c": 0,
+      "proc": true,
+      "inject_cl": false
+    }
+  },
+  {
+    "tag": "abl_m2",
+    "normfix_cov_items": 425,
+    "normfix_cov_ratio": 0.019600608771848913,
+    "config": {
+      "mm": true,
+      "a": 1,
+      "b": 1,
+      "c": 0,
+      "proc": true,
+      "inject_cl": false
+    }
+  },
+  {
+    "tag": "abl_m3",
+    "normfix_cov_items": 72,
+    "normfix_cov_ratio": 0.003320573721348522,
+    "config": {
+      "mm": true,
+      "a": 1,
+      "b": 1,
+      "c": 1,
+      "proc": true,
+      "inject_cl": false
+    }
+  },
+  {
+    "tag": "abl_m2_new",
+    "normfix_cov_items": 899,
+    "normfix_cov_ratio": 0.04146105243739335,
+    "config": {
+      "mm": true,
+      "a": 1,
+      "b": 1,
+      "c": 0,
+      "proc": false,
+      "inject_cl": true
+    }
+  }
+]

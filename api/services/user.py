@@ -43,6 +43,27 @@ class UserService:
             User.id == user_id
         ).first()
 
+    def update_user(self, user_id: int, updates: dict) -> Optional[User]:
+        """Update a user's editable profile fields.
+
+        Only whitelisted demographic fields may be changed here; credentials
+        (username / email / password_hash) are deliberately excluded.
+        """
+        db_user = self.get_user(user_id)
+        if not db_user:
+            return None
+
+        editable = {
+            "gender", "age", "height", "weight", "body_shape", "skin_tone"
+        }
+        for field, value in updates.items():
+            if field in editable and value is not None:
+                setattr(db_user, field, value)
+
+        self.session.commit()
+        self.session.refresh(db_user)
+        return db_user
+
     def get_user_by_username(self, username: str) -> Optional[User]:
         """Get a user by username."""
         return self.session.query(User).filter(

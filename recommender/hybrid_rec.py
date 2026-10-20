@@ -55,6 +55,8 @@ class KGHybridRec(nn.Module):
         use_improvement_a: bool = True,
         use_improvement_b: bool = True,
         use_improvement_c: bool = True,
+        use_processors: bool = False,
+        inject_cl_signal: bool = True,
         lambda_cl: float = 0.1,
         lambda_reg: float = 1e-4,
         lambda_kg: float = 0.1,
@@ -68,6 +70,13 @@ class KGHybridRec(nn.Module):
             n_hops: RippleNet hops
             n_heads, n_layers: GAT config
             use_improvement_a/b/c, use_multimodal: switches
+            use_processors: legacy flag — True loads pre-2026-07-29 ablation
+                checkpoints (abl_m1/m2/m3) which used cf/kg/mm_processor MLPs
+                in the adaptive gate. Default False (B-route: raw-feature gate).
+            inject_cl_signal: if False, predict_score skips the
+                `fused += 0.1 * cl_signal` injection added in 2026-08-17.
+                Used by eval scripts that want bit-for-bit reproduction of
+                pre-Step-2 ablation numbers (13/14/14).
             lambda_cl, lambda_reg, lambda_kg: loss weights
             graph: heterogeneous graph dict (edge_index, edge_type, n_total,
                 n_relations, item_offset, node_offsets) for KG + improvement B.
@@ -90,6 +99,7 @@ class KGHybridRec(nn.Module):
         self.lambda_cl = lambda_cl
         self.lambda_reg = lambda_reg
         self.lambda_kg = lambda_kg
+        self.inject_cl_signal = inject_cl_signal
         self.graph = graph
 
         # ============ KGAT Backbone ============
@@ -138,6 +148,8 @@ class KGHybridRec(nn.Module):
                 mm_dim=embedding_dim,
                 hidden_dim=embedding_dim // 2,
                 output_dim=embedding_dim,
+                use_mm=use_multimodal,  # FIX: skip MM gating when MM is disabled
+                use_processors=use_processors,  # legacy: True to load abl_* ckpts
             )
 
         if use_improvement_b:
@@ -332,8 +344,30 @@ class KGHybridRec(nn.Module):
                 cf_confidence=cf_confidence,
             )
         else:
-            adj = torch.eye(user_ids.size(0), device=user_ids.device)
-            fused, _ = self.gat_fusion(cf_emb, kg_emb, mm_emb, adj)
+            # A=0 path uses GAT fusion over an identity adjacency. Chunking the
+            # batch axis is mathematically exact IF kg_emb/cf_emb are computed
+            # once in full (RippleNet's RNG consumption is order-sensitive, so
+            # we must not call kg_module per-chunk). Only gat_fusion itself is
+            # chunked; cf_module is a pure lookup, no RNG.
+            chunk_size = 2048
+            n = user_ids.size(0)
+            fused_chunks = []
+            for start in range(0, n, chunk_size):
+                end = min(start + chunk_size, n)
+                adj = torch.eye(end - start, device=user_ids.device)
+                chunk_fused, _ = self.gat_fusion(
+                    cf_emb[start:end], kg_emb[start:end], mm_emb[start:end], adj,
+                )
+                fused_chunks.append(chunk_fused)
+            fused = torch.cat(fused_chunks, dim=0)
+
+        # Improvement B: weighted mix of contrastive node repr into fused.
+        # alpha=0.1 keeps A's adaptive-gate signal dominant (A drives HR@10).
+        # B's contribution is the auxiliary uniformization signal from
+        # independent GAT encoder + InfoNCE — see §3.3 and Step 2 plan.
+        if self.use_improvement_b and self.graph is not None and self.inject_cl_signal:
+            entity_ids = item_ids + self.graph['item_offset']
+            fused = fused + 0.1 * self.graph_contrastive.get_node_repr(entity_ids)
 
         scores = self.predict(fused).squeeze(-1)
         return torch.sigmoid(scores)
@@ -388,16 +422,68 @@ class KGHybridRecTrainer:
         weight_decay: float = 1e-4,
         lambda_cl: float = 0.1,
         lambda_reg: float = 1e-4,
+        cf_weight_decay: Optional[float] = None,
+        kg_weight_decay: Optional[float] = None,
+        other_weight_decay: Optional[float] = None,
     ):
+        """Trainer for KG-HybridRec.
+
+        Per-param L2 (cf_weight_decay / kg_weight_decay / other_weight_decay):
+        when all three are None, falls back to a single uniform ``weight_decay``
+        over every parameter (legacy behaviour). When any of them is set, the
+        optimizer is built with three param groups:
+
+          - cf_module.bpr_mf   -> cf_weight_decay    (BPR user/item embeddings)
+          - kg_module          -> kg_weight_decay    (KG + TransR + RippleNet)
+          - everything else    -> other_weight_decay (gates, GAT, contrastive,
+                                                     prediction MLP, multimodal)
+
+        Why split: uniform wd=1e-4 lets cf/kg embedding norms drift (popular
+        items inflate ~15x over cold items, see ``experiments/eval_diversity_
+        normfix.py``). Concentrating L2 on the embedding groups and zeroing it
+        on the gating/fusion modules gives popular-bias a brake without
+        crushing the adaptive gate's capacity. Lambda-reg in the loss still
+        applies to all params as a global floor.
+        """
         self.model = model
         self.lambda_cl = lambda_cl
         self.lambda_reg = lambda_reg
 
-        self.optimizer = torch.optim.Adam(
-            model.parameters(),
-            lr=learning_rate,
-            weight_decay=weight_decay,
+        # Resolve per-group wd: None -> use the legacy uniform weight_decay.
+        cf_wd = weight_decay if cf_weight_decay is None else cf_weight_decay
+        kg_wd = weight_decay if kg_weight_decay is None else kg_weight_decay
+        other_wd = weight_decay if other_weight_decay is None else other_weight_decay
+
+        # If all three collapse to the same value, keep the legacy single-group
+        # optimizer (avoids touching optimizer state when the caller doesn't
+        # opt into the fix).
+        per_group_split = (
+            cf_weight_decay is not None
+            or kg_weight_decay is not None
+            or other_weight_decay is not None
         )
+
+        if per_group_split:
+            cf_params = list(model.cf_module.bpr_mf.parameters())
+            kg_params = list(model.kg_module.parameters())
+            cf_param_ids = {id(p) for p in cf_params}
+            kg_param_ids = {id(p) for p in kg_params}
+            other_params = [
+                p for p in model.parameters()
+                if id(p) not in cf_param_ids and id(p) not in kg_param_ids
+            ]
+            param_groups = [
+                {'params': cf_params, 'weight_decay': cf_wd},
+                {'params': kg_params, 'weight_decay': kg_wd},
+                {'params': other_params, 'weight_decay': other_wd},
+            ]
+            self.optimizer = torch.optim.Adam(param_groups, lr=learning_rate)
+        else:
+            self.optimizer = torch.optim.Adam(
+                model.parameters(),
+                lr=learning_rate,
+                weight_decay=weight_decay,
+            )
 
         self.scheduler = torch.optim.lr_scheduler.ReduceLROnPlateau(
             self.optimizer,

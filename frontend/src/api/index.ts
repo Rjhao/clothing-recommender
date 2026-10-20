@@ -52,7 +52,29 @@ export interface User {
   email?: string
   gender?: string
   age?: number
+  height?: number
+  weight?: number
+  body_shape?: string
+  skin_tone?: string
   preferred_style?: string
+  created_at?: string
+}
+
+export interface UserProfile {
+  user_id: number
+  static_info: Partial<User>
+  style_distribution: Record<string, number>
+  color_preferences: Record<string, number>
+  price_range: { min: number; max: number; avg: number }
+  brand_preferences?: Record<string, number>
+  interaction_count: number
+}
+
+export interface HistoryEntry {
+  c: ClothingItem
+  relation_type: string
+  score?: number
+  timestamp?: string
 }
 
 export interface Recommendation {
@@ -78,6 +100,12 @@ export interface TryOnResult {
   backend?: string
 }
 
+export interface TryOnHRVitonResult {
+  result_id: string
+  result_url: string
+  backend: string
+}
+
 export interface UploadedImage {
   image_id: string
   filename: string
@@ -97,8 +125,18 @@ export const authAPI = {
     return response.data
   },
 
-  register: async (username: string, password: string, email: string) => {
-    const response = await api.post('/auth/register', { username, password, email })
+  register: async (
+    username: string,
+    password: string,
+    email: string,
+    extra?: Partial<Pick<User, 'gender' | 'age' | 'height' | 'weight' | 'body_shape' | 'skin_tone'>>
+  ) => {
+    const response = await api.post('/auth/register', {
+      username,
+      password,
+      email,
+      ...extra,
+    })
     return response.data
   },
 
@@ -118,9 +156,22 @@ export const userAPI = {
     return response.data
   },
 
-  updateProfile: async (userId: number, data: Partial<User>) => {
+  updateProfile: async (userId: number, data: Partial<User>): Promise<User> => {
     const response = await api.put(`/users/${userId}`, data)
     return response.data
+  },
+
+  // Behaviour-derived profile: style distribution, colour/price preferences.
+  getFullProfile: async (userId: number): Promise<UserProfile> => {
+    const response = await api.get(`/recommend/${userId}/profile`)
+    return response.data
+  },
+
+  getHistory: async (userId: number, limit = 50): Promise<HistoryEntry[]> => {
+    const response = await api.get(`/interactions/history/${userId}`, {
+      params: { limit },
+    })
+    return response.data.history || []
   },
 
   getRecommendations: async (userId: number, category?: string, limit = 10) => {
@@ -145,6 +196,12 @@ export const userAPI = {
       params: { limit },
     })
     return response.data
+  },
+
+  // 推荐风格列表(根据用户身材 + 既有偏好推断)
+  getRecommendedStyles: async (userId: number): Promise<string[]> => {
+    const response = await api.get(`/recommend/${userId}/styles`)
+    return response.data.recommended_styles || []
   },
 }
 
@@ -238,13 +295,13 @@ export const kgAPI = {
 
 export const tryonAPI = {
   getCategories: async (): Promise<string[]> => {
-    const response = await tryonApi.get('/tryon/categories')
+    const response = await tryonApi.get('/tryon-api/categories')
     return response.data
   },
 
   getClothing: async (category?: string) => {
     const params = category ? { category } : {}
-    const response = await tryonApi.get('/tryon/clothing', { params })
+    const response = await tryonApi.get('/tryon-api/clothing', { params })
     return response.data
   },
 
@@ -252,7 +309,7 @@ export const tryonAPI = {
     const formData = new FormData()
     formData.append('file', file)
 
-    const response = await tryonApi.post('/tryon/upload/person', formData, {
+    const response = await tryonApi.post('/tryon-api/upload/person', formData, {
       headers: { 'Content-Type': 'multipart/form-data' },
     })
     return response.data
@@ -262,7 +319,7 @@ export const tryonAPI = {
     const formData = new FormData()
     formData.append('file', file)
 
-    const response = await tryonApi.post('/tryon/upload/cloth', formData, {
+    const response = await tryonApi.post('/tryon-api/upload/cloth', formData, {
       headers: { 'Content-Type': 'multipart/form-data' },
     })
     return response.data
@@ -273,7 +330,7 @@ export const tryonAPI = {
     clothImageId: string,
     category: string = 'top'
   ): Promise<TryOnResult> => {
-    const response = await tryonApi.post('/tryon', {
+    const response = await tryonApi.post('/tryon-api', {
       person_image_id: personImageId,
       cloth_image_id: clothImageId,
       category,
@@ -281,8 +338,19 @@ export const tryonAPI = {
     return response.data
   },
 
+  generateTryOnHRViton: async (
+    personImageId: string,
+    clothImageId: string
+  ): Promise<TryOnHRVitonResult> => {
+    const response = await tryonApi.post('/tryon-api_idm', {
+      person_image_id: personImageId,
+      cloth_image_id: clothImageId,
+    })
+    return response.data
+  },
+
   getResult: async (resultId: string) => {
-    const response = await tryonApi.get(`/tryon/result/${resultId}`, {
+    const response = await tryonApi.get(`/tryon-api/result/${resultId}`, {
       responseType: 'blob',
     })
     return URL.createObjectURL(response.data)

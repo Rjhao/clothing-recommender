@@ -14,10 +14,29 @@ data/*.parquet
 
 # ===== 第三方/大模型代码 (单独 clone, 见 TRYON_SETUP.md) =====
 ACGPN/
+hr_viton/
+# shop-tryon-skill 是独立 clone 的 skill 包 (自带 .git), 提交会成为断链的 gitlink
+shop-tryon-skill/
+
+# ===== 模型权重 (单个 46-66MB; 保留同目录的 *.json 指标与 history) =====
+checkpoints/**/*.pt
+
+# ===== 根目录 tryon 调试图 (非论文图表, 论文配图在 figures/) =====
+/compare_grid_*.png
+/eval_compare_grid*.png
+/test_*_parse.png
+/tryon_*.png
 
 # ===== Try-on 运行时上传/结果 =====
 static/uploads/
 static/results/
+
+# ===== 下载的二进制模型 (非源码) =====
+# static/models/u2net.onnx = 172MB GrabCut 抠图权重
+static/models/u2net.onnx
+
+# ===== 脚本生成的 3D 试穿模型 (见 gen_clothing_glb.py) =====
+frontend/public/models/clothes/
 
 # ===== Python =====
 __pycache__/

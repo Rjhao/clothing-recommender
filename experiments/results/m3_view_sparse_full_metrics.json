@@ -1,0 +1,24 @@
+{
+  "hr@5": 0.42079980785396903,
+  "hr@10": 0.5390096473319723,
+  "hr@20": 0.6600216164284857,
+  "ndcg@5": 0.31528222471139933,
+  "ndcg@10": 0.3535113283660766,
+  "ndcg@20": 0.3841940042526971,
+  "precision@5": 0.08415996157079379,
+  "precision@10": 0.05390096473319723,
+  "precision@20": 0.033001080821424285,
+  "recall@5": 0.42079980785396903,
+  "recall@10": 0.5390096473319723,
+  "recall@20": 0.6600216164284857,
+  "meta": {
+    "model": "checkpoints/view_sparse_m3_5ep/best_model.pt",
+    "data": "data/amazon_fashion_view_sparse.json",
+    "tag": "m3_view_sparse",
+    "protocol": "sampled-100 leave-one-out",
+    "n_test_users": 24981,
+    "seed": 42,
+    "n_negative": 100,
+    "device": "cuda"
+  }
+}

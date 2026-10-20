@@ -9,6 +9,7 @@ import { GLTFLoader } from 'three/addons/loaders/GLTFLoader.js'
 function buildProgrammaticClothing(
   category: 'top' | 'bottom',
   color: number = 0x4a90e2,
+  textureUrl?: string,
 ): THREE.Group {
   const group = new THREE.Group()
   const material = new THREE.MeshStandardMaterial({
@@ -87,6 +88,37 @@ function buildProgrammaticClothing(
     // 位置:对齐 VRM 腿部
     group.position.set(0, 0.0, 0)
   }
+
+  // Apply real cloth texture (loaded async) over the base flat color.
+  // We swap material.map on every mesh in the group, keeping the base color as
+  // a fallback while the texture loads.
+  if (textureUrl) {
+    const texLoader = new THREE.TextureLoader()
+    texLoader.load(
+      textureUrl,
+      (tex) => {
+        tex.colorSpace = THREE.SRGBColorSpace
+        tex.wrapS = THREE.RepeatWrapping
+        tex.wrapT = THREE.RepeatWrapping
+        group.traverse((node: any) => {
+          if (node.isMesh && node.material) {
+            const m = node.material as THREE.MeshStandardMaterial
+            // Skip the white collar ring / dark belt — keep their colors.
+            const hex = '#' + m.color.getHexString()
+            if (hex === 'ffffff' || hex === '2c3e50') return
+            m.map = tex
+            m.color.setHex(0xffffff) // let texture drive color
+            m.needsUpdate = true
+          }
+        })
+      },
+      undefined,
+      () => {
+        // On load failure keep flat color — already set as fallback.
+      },
+    )
+  }
+
   return group
 }
 
@@ -127,6 +159,7 @@ const ThreeDClothViewer: React.FC<Props> = ({
   const rendererRef = useRef<THREE.WebGLRenderer | null>(null)
   const modelRef = useRef<THREE.Object3D | null>(null)
   const clothingGroupRef = useRef<THREE.Group | null>(null)
+  const clothingGroupGenRef = useRef<number>(0)
   const mixerRef = useRef<THREE.AnimationMixer | null>(null)
   const clockRef = useRef<THREE.Clock | null>(null)
   const animationIdRef = useRef<number>(0)
@@ -223,10 +256,9 @@ const ThreeDClothViewer: React.FC<Props> = ({
 
     loader.load(
       url,
-      (gltf) => {
+      (gltf: any) => {
         // Race-condition guard: ignore result if the effect was cancelled
         if (cancelled()) {
-          // Dispose the late-arriving model to avoid leaking it
           gltf.scene.traverse((obj: any) => {
             if (obj.isMesh) {
               obj.geometry?.dispose()
@@ -248,13 +280,47 @@ const ThreeDClothViewer: React.FC<Props> = ({
         setLoadProgress(90)
         const model = gltf.scene
 
+        // Drop the arms from T-pose by name-matching VRM bones directly.
+        // We try rotation around X axis (the most likely convention for VRM
+        // where bones extend along Y and the arm rotation around X swings it
+        // from horizontal to vertical). For each bone, rotate ±π/2 around X.
+        const PI = Math.PI
+        let armBoneCount = 0
+        model.traverse((obj: any) => {
+          if (!obj.name) return
+          const n = obj.name
+          if (/J_Bip_(L|R)_UpperArm/.test(n)) {
+            armBoneCount++
+            const isLeft = /_L_/.test(n)
+            if (isLeft) {
+              // Left arm: drop straight down (slightly outward)
+              obj.rotation.set(0, 0, -PI * 0.20)
+            } else {
+              // Right arm: relaxed natural pose (slight forward + down)
+              obj.rotation.set(-PI * 0.10, 0, PI * 0.35)
+            }
+            obj.updateMatrix()
+            obj.updateMatrixWorld(true)
+          } else if (/J_Bip_(L|R)_LowerArm/.test(n)) {
+            const isLeft = /_L_/.test(n)
+            obj.rotation.set(0, 0, isLeft ? PI * 0.2 : -PI * 0.1)
+            obj.updateMatrix()
+            obj.updateMatrixWorld(true)
+          }
+        })
+        // Force SkinnedMesh skeletons to recalculate so deformed meshes use the new pose
+        model.traverse((obj: any) => {
+          if (obj.isSkinnedMesh && obj.skeleton) {
+            obj.skeleton.update()
+          }
+        })
+        console.log('[pose] upper-arm bones touched:', armBoneCount)
+
         // 根据模型类型调整大小和位置
         if (isMale) {
-          // VRM 男性 - 缩小一点
           model.scale.set(0.9, 0.9, 0.9)
           model.position.y = -0.7
         } else {
-          // VRM 女性
           model.scale.set(1.0, 1.0, 1.0)
           model.position.y = -0.65
         }
@@ -266,6 +332,19 @@ const ThreeDClothViewer: React.FC<Props> = ({
           if (obj.isMesh) {
             obj.castShadow = true
             obj.receiveShadow = true
+          }
+        })
+
+        // Hide ALL built-in clothing (Tops + Bottoms + Shoes) so our 3D clothes
+// aren't fighting with the avatar's own meshes.
+        model.traverse((obj: any) => {
+          if (!obj.isMesh) return
+          const mats = Array.isArray(obj.material) ? obj.material : [obj.material]
+          for (const m of mats) {
+            if (m && m.name && /CLOTH$/i.test(m.name)) {
+              obj.visible = false
+              break
+            }
           }
         })
 
@@ -434,6 +513,11 @@ const ThreeDClothViewer: React.FC<Props> = ({
       })
     }
 
+    // Generation counter — async texture-load callbacks from a stale generation
+    // (e.g. user clicks another preset before the previous texture finished)
+    // must NOT add their meshes to the new clothingGroup.
+    const myGen = (clothingGroupGenRef.current = (clothingGroupGenRef.current ?? 0) + 1)
+
     if (Object.keys(clothing).length === 0) return
 
     // Create clothing group (支持 3 种来源:程序化生成 / GLB 加载 / 老图片贴图)
@@ -449,13 +533,45 @@ const ThreeDClothViewer: React.FC<Props> = ({
         glbUrl,
         (gltf) => {
           const clothModel = gltf.scene
-          // 启用阴影 + 调整比例(根据人偶身材,约 0.8-1.0)
-          clothModel.scale.set(1.0, 1.0, 1.0)
+          // Auto-fit: compute bounding box and normalize to ~1.4 units tall
+          // so clothing sits at the avatar's scale regardless of source units.
+          const box = new THREE.Box3().setFromObject(clothModel)
+          const size = new THREE.Vector3()
+          box.getSize(size)
+          const center = new THREE.Vector3()
+          box.getCenter(center)
+
+          // Detect up-axis: if Z is the largest dimension, the model uses Z-up.
+          // For Y-up models we just rotate around Y to face camera.
+          // For Z-up models we need to flip the up-axis AND face the camera,
+          // which requires a specific Euler order (YXZ) so Y is applied first.
+          if (size.z > size.y * 1.2) {
+            // Z-up → Y-up + face +Z (avatar's forward)
+            clothModel.rotation.set(-Math.PI / 2, -Math.PI / 2, 0, 'YXZ')
+          } else {
+            clothModel.rotation.set(0, -Math.PI / 24, 0, 'XYZ')
+          }
+          clothModel.updateMatrix()
+          console.log('[clothing] size=(', size.x.toFixed(1), size.y.toFixed(1), size.z.toFixed(1), ') Z-up?', size.z > size.y * 1.2, 'rot=', clothModel.rotation.x.toFixed(2), clothModel.rotation.y.toFixed(2), clothModel.rotation.z.toFixed(2), 'order=', clothModel.rotation.order)
+
+          // Recompute bounds AFTER all rotations so centering is correct.
+          box.setFromObject(clothModel)
+          box.getSize(size)
+          box.getCenter(center)
+
+          // Force a fixed target height of 0.9m (dress covers shoulders to knees).
+// Mild X/Z boost so the shirt wraps slightly around the torso.
+          const targetHeight = 0.9
+          const scaleY = size.y > 0 ? targetHeight / size.y : 1.0
+          clothModel.scale.set(scaleY * 1.05, scaleY, scaleY * 1.05)
+          // Re-center horizontally on x/z, lift so bottom of model sits at y=0
+          clothModel.position.x -= center.x * scaleY
+          clothModel.position.z -= center.z * scaleY
+          clothModel.position.y -= box.min.y * scaleY
           clothModel.traverse((obj: any) => {
             if (obj.isMesh) {
               obj.castShadow = true
               obj.receiveShadow = true
-              // 提升材质质感
               if (obj.material) {
                 if (Array.isArray(obj.material)) {
                   obj.material.forEach((m: any) => {
@@ -469,13 +585,19 @@ const ThreeDClothViewer: React.FC<Props> = ({
               }
             }
           })
-          // 类别位置微调(对齐人偶的不同身体部位)
+          // After auto-fit, model is normalized to height=1.4 with bottom at y=0.
+// Offset so each category sits at the right body part of the VRM avatar.
+// z=0.05 puts clothing slightly in front of body center.
           const isMale = gender === 'male'
           const posMap: Record<string, THREE.Vector3> = {
-            top: new THREE.Vector3(0, isMale ? 0.3 : 0.25, 0),
-            bottom: new THREE.Vector3(0, -0.25, 0),
-            dress: new THREE.Vector3(0, 0, 0),
-            outerwear: new THREE.Vector3(0, isMale ? 0.25 : 0.22, 0),
+            // top: shirt bottom at waist, top at shoulders
+            top: new THREE.Vector3(0, isMale ? 0.52 : 0.47, 0.05),
+            // bottom: pants top at waist, hangs down
+            bottom: new THREE.Vector3(0, 0.75, 0.05),
+            // dress: full length from shoulders to knees
+            dress: new THREE.Vector3(0, -0.67, 0.05),
+            // outerwear: like top
+            outerwear: new THREE.Vector3(0, isMale ? 0.4 : 0.35, 0.05),
           }
           if (posMap[category]) {
             clothModel.position.copy(posMap[category])
@@ -502,40 +624,69 @@ const ThreeDClothViewer: React.FC<Props> = ({
       if (!url) return
       if (isProgrammatic(url)) {
         // 程序化生成(默认演示用,无外部资源依赖)
-        const color = url.includes('pants') ? 0x2c3e50 : 0x4a90e2
+        // `__programmatic_*__` = flat color demo.
+        // `__programmatic_texture__:<path>` = apply real cloth texture.
+        let color = url.includes('pants') ? 0x2c3e50 : 0x4a90e2
+        let textureUrl: string | undefined = undefined
+        if (url.startsWith('__programmatic_texture__:')) {
+          textureUrl = url.substring('__programmatic_texture__:'.length)
+          color = 0xffffff // neutral so texture shows true colors
+        }
         const clothModel = buildProgrammaticClothing(
           (cat === 'top' || cat === 'outerwear') ? 'top' : 'bottom',
           color,
+          textureUrl,
         )
         clothingGroup.add(clothModel)
       } else if (isGlb(url)) {
         loadClothingGlb(url, cat)
       } else {
-        // 老格式(图片 URL)用 BoxGeometry + 贴图,作为 fallback
+        // 图片 URL → PlaneGeometry + 贴图(贴一张衣服照片在胸前,最像"穿")
         const isMale = gender === 'male'
-        const geoMap: Record<string, THREE.BufferGeometry> = {
-          top: new THREE.BoxGeometry(0.35, 0.3, 0.2),
-          bottom: new THREE.BoxGeometry(0.3, 0.4, 0.2),
-          dress: new THREE.CylinderGeometry(0.18, 0.3, 0.6, 12),
-          outerwear: new THREE.BoxGeometry(0.4, 0.32, 0.25),
+        // Size roughly matches garment body coverage in original photo
+        // (VITON-HD cloth photos are ~3:4 portrait, 768x1024)
+        const sizeMap: Record<string, [number, number]> = {
+          top: [0.42, 0.55],
+          bottom: [0.34, 0.7],
+          dress: [0.4, 0.95],
+          outerwear: [0.45, 0.6],
         }
         const posMap: Record<string, THREE.Vector3> = {
-          top: new THREE.Vector3(0, isMale ? 0.3 : 0.25, 0),
-          bottom: new THREE.Vector3(0, -0.25, 0),
-          dress: new THREE.Vector3(0, 0, 0),
-          outerwear: new THREE.Vector3(0, isMale ? 0.25 : 0.22, 0),
+          // Top too high (y=0.85 hit face). Lower it to chest level.
+          top: new THREE.Vector3(0, isMale ? 0.50 : 0.45, 0.18),
+          bottom: new THREE.Vector3(0, -0.15, 0.18),
+          dress: new THREE.Vector3(0, 0.20, 0.18),
+          outerwear: new THREE.Vector3(0, isMale ? 0.48 : 0.43, 0.18),
         }
+        const [w, h] = sizeMap[cat]
         const texLoader = new THREE.TextureLoader()
         texLoader.load(
           url,
           (tex) => {
+            // Bail if a newer preset has been selected while we were loading.
+            if (clothingGroupGenRef.current !== myGen) return
             tex.colorSpace = THREE.SRGBColorSpace
             const mat = new THREE.MeshStandardMaterial({
-              map: tex, transparent: true, side: THREE.DoubleSide, roughness: 0.8,
+              map: tex,
+              transparent: false,
+              side: THREE.DoubleSide,
+              roughness: 0.85,
+              metalness: 0.0,
             })
-            const mesh = new THREE.Mesh(geoMap[cat], mat)
+            // Half-cylinder wrapping the body's front (thetaLength = Math.PI).
+            // This gives the cloth real 3D curvature instead of a flat card.
+            const radius = w / Math.PI
+            const cyl = new THREE.CylinderGeometry(
+              radius, radius, h, 24, 1, true,
+              -Math.PI / 2, Math.PI,  // front-facing half
+            )
+            const mesh = new THREE.Mesh(cyl, mat)
+            // CylinderGeometry stands vertical by default; rotate so the open
+            // side faces the camera and the seam runs down the avatar's spine.
+            mesh.rotation.z = Math.PI / 2
             mesh.position.copy(posMap[cat])
             mesh.castShadow = true
+            mesh.receiveShadow = true
             clothingGroup.add(mesh)
           },
           undefined,

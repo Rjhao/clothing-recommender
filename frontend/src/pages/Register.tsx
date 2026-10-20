@@ -25,7 +25,9 @@ export default function Register() {
 
     setLoading(true)
     try {
-      await register(values.username, values.email, values.password)
+      await register(values.username, values.email, values.password, {
+        gender: values.gender,
+      })
       message.success('注册成功！')
       navigate('/')
     } catch (error: any) {

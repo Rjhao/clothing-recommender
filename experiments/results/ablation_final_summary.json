@@ -1,0 +1,135 @@
+{
+  "protocol": "leave-one-out + sampled-100, 20 epochs, seed=42, GPU",
+  "data": "amazon_fashion_real.json (purchase+cart, 64097u/21683i/273464 inter)",
+  "configs_models": {
+    "M0": "KGAT backbone (A=B=C=0)",
+    "M1": "M0 + adaptive gate (A=1)",
+    "M2": "M0+A+B (B=1, decoupled per default)",
+    "M3": "M0+A+B+C (C=1, no HR impact by design)"
+  },
+  "ablation_full": {
+    "protocol": "sampled-100, 64097 test users",
+    "rows": [
+      {
+        "label": "M0",
+        "A": 0,
+        "B": 0,
+        "C": 0,
+        "hr10": 0.5841,
+        "ndcg10": 0.399,
+        "vs_m0": 0.0,
+        "contrib_delta": null
+      },
+      {
+        "label": "M0+A",
+        "A": 1,
+        "B": 0,
+        "C": 0,
+        "hr10": 0.5901,
+        "ndcg10": 0.4042,
+        "vs_m0": 0.0061,
+        "contrib_delta": 0.0061
+      },
+      {
+        "label": "M0+A+B",
+        "A": 1,
+        "B": 1,
+        "C": 0,
+        "hr10": 0.5895,
+        "ndcg10": 0.4031,
+        "vs_m0": 0.0054,
+        "contrib_delta": -0.0007
+      },
+      {
+        "label": "M0+A+B+C (M3)",
+        "A": 1,
+        "B": 1,
+        "C": 1,
+        "hr10": 0.5909,
+        "ndcg10": 0.4041,
+        "vs_m0": 0.0069,
+        "contrib_delta": 0.0015
+      }
+    ],
+    "note": "M3=0.5909 与主结果 0.5890 偏差 +0.0019, 在 sampled-100 噪声范围内, 协议可比校验通过. 全量上 ABC 三项合计 +0.0069, 增益有限."
+  },
+  "ablation_coldstart": {
+    "protocol": "sampled-100, cold_user<5 (47592u), cold_item<10 (13960u)",
+    "rows": [
+      {
+        "label": "M0",
+        "A": 0,
+        "B": 0,
+        "C": 0,
+        "all": 0.584,
+        "cold_user": 0.5966,
+        "cold_item": 0.0042,
+        "cold_both": 0.0047
+      },
+      {
+        "label": "M0+A",
+        "A": 1,
+        "B": 0,
+        "C": 0,
+        "all": 0.5905,
+        "cold_user": 0.6018,
+        "cold_item": 0.0014,
+        "cold_both": 0.0014
+      },
+      {
+        "label": "M0+A+B",
+        "A": 1,
+        "B": 1,
+        "C": 0,
+        "all": 0.5897,
+        "cold_user": 0.6029,
+        "cold_item": 0.0019,
+        "cold_both": 0.0012
+      },
+      {
+        "label": "M0+A+B+C (M3)",
+        "A": 1,
+        "B": 1,
+        "C": 1,
+        "all": 0.5903,
+        "cold_user": 0.6018,
+        "cold_item": 0.0019,
+        "cold_both": 0.0019
+      }
+    ],
+    "note": "cold_user 上 A 单独贡献 +0.0052, B 额外 +0.0011, C 0 (设计). 三项在冷启动上同样无戏剧性增益, GAT 图传播已承担主要稀疏信息."
+  },
+  "ablation_diversity_pilot": {
+    "protocol": "top-10 over full 21683-item catalog, 500 sampled test users (seed=42)",
+    "rows": [
+      {
+        "label": "M1 (无 B)",
+        "A": 1,
+        "B": 0,
+        "C": 0,
+        "coverage": 0.00062,
+        "gini": 0.99953,
+        "norm_entropy": 0.2406,
+        "tail_ratio": 0.0,
+        "agg_div": 0.0026
+      },
+      {
+        "label": "M2 (修法A: B 真正参与打分路径)",
+        "A": 1,
+        "B": 1,
+        "C": 0,
+        "coverage": 0.00083,
+        "gini": 0.99951,
+        "norm_entropy": 0.2518,
+        "tail_ratio": 0.0,
+        "agg_div": 0.0036
+      }
+    ],
+    "note": "多样性试点 (500用户): 修了 B 模块与打分脱钩的接线问题后 (修法 A), B 启动使 top-10 覆盖率相对 +34% (从 13 item -> 18 item), 归一化熵 +4.7%, 但绝对覆盖率仍极低, 长尾命中仍为 0. 表明 B 的价值不在精度也不在长尾, 而在扩展推荐分布的覆盖集合 (副作用). 后续方案2 (新加 local uniformity) 反而 Coverage 跌回 0.00065, 故以修法 A 版为 B 最佳定位."
+  },
+  "conclusion_AB": {
+    "A": "自适应门控是唯一在稠密与冷启动均稳定正贡献 (+0.006 / +0.005), 论文主表归 A 为精度贡献项.",
+    "B": "图对比学习在多种实现下均未给精度带来实质收益 (全量 / 冷启动 / 修法A重测 / 方案2重测, 均在 ±0.002 噪声内). 唯一可观察的价值在多样性 (修法 A 版覆盖率 +34%), 但绝对值仍低, 长尾未达. 论文可作辅助点, 不作精度卖点.",
+    "C": "不参与精度, 设计如此 (只为可解释性)."
+  }
+}

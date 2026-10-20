@@ -71,6 +71,20 @@ class UserCreate(UserBase):
     password: str
 
 
+class UserUpdate(BaseModel):
+    """Model for updating a user's editable profile fields.
+
+    Credentials (username / email / password) are intentionally not editable
+    through this model.
+    """
+    gender: Optional[GenderEnum] = None
+    age: Optional[int] = None
+    height: Optional[float] = None
+    weight: Optional[float] = None
+    body_shape: Optional[BodyShapeEnum] = None
+    skin_tone: Optional[SkinToneEnum] = None
+
+
 class UserPydantic(UserBase):
     """Full user model with ID (Pydantic)."""
     id: int

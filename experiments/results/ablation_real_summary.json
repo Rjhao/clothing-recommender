@@ -1,0 +1,59 @@
+{
+  "protocol": "leave-one-out + sampled-100, 20 epoch, seed=42",
+  "configs": [
+    {
+      "label": "M0",
+      "tag": "abl_m0",
+      "A": 0,
+      "B": 0,
+      "C": 0,
+      "hr10": 0.5840522957392702,
+      "ndcg10": 0.39898024709732066,
+      "vs_m0": 0.0,
+      "contrib_delta": null,
+      "note": "基线",
+      "status": "OK"
+    },
+    {
+      "label": "M0+A",
+      "tag": "abl_m1",
+      "A": 1,
+      "B": 0,
+      "C": 0,
+      "hr10": 0.590121222522115,
+      "ndcg10": 0.4042433950067254,
+      "vs_m0": 0.0061,
+      "contrib_delta": 0.0061,
+      "note": "+A 自适应门控",
+      "status": "OK"
+    },
+    {
+      "label": "M0+A+B",
+      "tag": "abl_m2",
+      "A": 1,
+      "B": 1,
+      "C": 0,
+      "hr10": 0.5894503642916206,
+      "ndcg10": 0.403054921364144,
+      "vs_m0": 0.0054,
+      "contrib_delta": -0.0007,
+      "note": "+B 图对比学习",
+      "status": "OK"
+    },
+    {
+      "label": "M0+A+B+C (M3)",
+      "tag": "abl_m3",
+      "A": 1,
+      "B": 1,
+      "C": 1,
+      "hr10": 0.5909480942945847,
+      "ndcg10": 0.40405479491756024,
+      "vs_m0": 0.0069,
+      "contrib_delta": 0.0015,
+      "note": "+C 注意力可解释",
+      "status": "OK"
+    }
+  ],
+  "m3_hr10_should_match_main_table": 0.589,
+  "note": "C (attention_explain) 只构造模块, 不参与 forward/predict_score, 故 M0+A+B 与 M0+A+B+C(M3) 的 HR 相同 (设计如此, C 的价值在可解释性, 不在精度)."
+}

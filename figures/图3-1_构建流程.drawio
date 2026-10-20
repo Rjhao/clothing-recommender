@@ -1,0 +1,30 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<mxfile host="app.diagrams.net" type="device">
+<diagram name="图3-1_构建流程" id="fig1"><mxGraphModel dx="1400" dy="900" grid="1" gridSize="10" guides="1" tooltips="1" connect="1" arrows="1" fold="1" page="1" pageScale="1" pageWidth="1600" pageHeight="1200" math="0" shadow="0"><root><mxCell id="0"/><mxCell id="1" parent="0"/><mxCell id="f1_s0" value="① 数据采集
+
+Amazon eCommerce JSON
+(product_id / name / category
+/ brand / price / styles / season)" style="rounded=1;whiteSpace=wrap;html=1;fillColor=#dae8fc;strokeColor=#6c8ebf;fontSize=11;" vertex="1" parent="1"><mxGeometry x="40" y="120" width="230" height="170" as="geometry"/></mxCell><mxCell id="f1_t0" value="图 3-1 阶段 1" style="" vertex="1" parent="1"><mxGeometry x="40" y="80" width="230" height="30" as="geometry"/></mxCell><mxCell id="f1_s1" value="② 规范化清洗
+
+clean_category()
+clean_style()
+clean_season()
+(非法值→默认枚举)" style="rounded=1;whiteSpace=wrap;html=1;fillColor=#d5e8d4;strokeColor=#82b366;fontSize=11;" vertex="1" parent="1"><mxGeometry x="300" y="120" width="230" height="170" as="geometry"/></mxCell><mxCell id="f1_t1" value="图 3-1 阶段 2" style="" vertex="1" parent="1"><mxGeometry x="300" y="80" width="230" height="30" as="geometry"/></mxCell><mxCell id="f1_s2" value="③ 本体映射
+
+字段 → 节点标签与关系
+(Category/Style/Brand
+等本体映射)" style="rounded=1;whiteSpace=wrap;html=1;fillColor=#ffe6cc;strokeColor=#d79b00;fontSize=11;" vertex="1" parent="1"><mxGeometry x="560" y="120" width="230" height="170" as="geometry"/></mxCell><mxCell id="f1_t2" value="图 3-1 阶段 3" style="" vertex="1" parent="1"><mxGeometry x="560" y="80" width="230" height="30" as="geometry"/></mxCell><mxCell id="f1_s3" value="④ 节点关系导入
+
+MERGE 幂等写入
+User/Clothing/Category/Style/Brand
+IN_CATEGORY/HAS_STYLE/FROM_BRAND" style="rounded=1;whiteSpace=wrap;html=1;fillColor=#e1d5e7;strokeColor=#9673a6;fontSize=11;" vertex="1" parent="1"><mxGeometry x="820" y="120" width="230" height="170" as="geometry"/></mxCell><mxCell id="f1_t3" value="图 3-1 阶段 4" style="" vertex="1" parent="1"><mxGeometry x="820" y="80" width="230" height="30" as="geometry"/></mxCell><mxCell id="f1_s4" value="⑤ 关系生成
+
+MATCHES_WITH(score=0.6)
+跨品类互补
+SIMILAR_TO(score=0.7)
+同风格相似" style="rounded=1;whiteSpace=wrap;html=1;fillColor=#f8cecc;strokeColor=#b85450;fontSize=11;" vertex="1" parent="1"><mxGeometry x="1080" y="120" width="230" height="170" as="geometry"/></mxCell><mxCell id="f1_t4" value="图 3-1 阶段 5" style="" vertex="1" parent="1"><mxGeometry x="1080" y="80" width="230" height="30" as="geometry"/></mxCell><mxCell id="f1_s5" value="⑥ 表示学习
+
+TransE 离线嵌入
+(h+r≈t, dim=100)
+实体/关系向量" style="rounded=1;whiteSpace=wrap;html=1;fillColor=#b1ddf0;strokeColor=#10739e;fontSize=11;" vertex="1" parent="1"><mxGeometry x="1340" y="120" width="230" height="170" as="geometry"/></mxCell><mxCell id="f1_t5" value="图 3-1 阶段 6" style="" vertex="1" parent="1"><mxGeometry x="1340" y="80" width="230" height="30" as="geometry"/></mxCell><mxCell id="f1_e0" value="" style="endArrow=classic;html=1;rounded=0;strokeWidth=2;" edge="1" parent="1" source="f1_s0" target="f1_s1"><mxGeometry relative="1" as="geometry"/></mxCell><mxCell id="f1_e1" value="" style="endArrow=classic;html=1;rounded=0;strokeWidth=2;" edge="1" parent="1" source="f1_s1" target="f1_s2"><mxGeometry relative="1" as="geometry"/></mxCell><mxCell id="f1_e2" value="" style="endArrow=classic;html=1;rounded=0;strokeWidth=2;" edge="1" parent="1" source="f1_s2" target="f1_s3"><mxGeometry relative="1" as="geometry"/></mxCell><mxCell id="f1_e3" value="" style="endArrow=classic;html=1;rounded=0;strokeWidth=2;" edge="1" parent="1" source="f1_s3" target="f1_s4"><mxGeometry relative="1" as="geometry"/></mxCell><mxCell id="f1_e4" value="" style="endArrow=classic;html=1;rounded=0;strokeWidth=2;" edge="1" parent="1" source="f1_s4" target="f1_s5"><mxGeometry relative="1" as="geometry"/></mxCell><mxCell id="f1_title" value="图 3-1  服装领域知识图谱构建总体流程" style="text;html=1;strokeColor=none;fillColor=none;align=center;verticalAlign=middle;whiteSpace=wrap;rounded=0;fontSize=13;fontStyle=1;" vertex="1" parent="1"><mxGeometry x="40" y="40" width="1500" height="40" as="geometry"/></mxCell><mxCell id="f1_note" value="数据(蓝)→清洗(绿)→本体(橙)→导入(紫)→关系生成(红)→表示学习(青)" style="text;html=1;strokeColor=none;fillColor=none;fontSize=10;" vertex="1" parent="1"><mxGeometry x="40" y="330" width="1500" height="20" as="geometry"/></mxCell></root></mxGraphModel></diagram>
+</mxfile>
