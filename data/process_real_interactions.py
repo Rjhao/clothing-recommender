@@ -6,7 +6,7 @@
 取 items[-1] 是真实时序最后的交互（真实数据相比合成数据的核心优势）。
 k-core 过滤：用户 ≥3 交互（留一法需 train+val+test），商品 ≥2 被交互（去噪）。
 
-输出 schema 与 amazon_fashion_expanded.json 完全一致，train.py / evaluate.py /
+输出为 data/amazon_fashion_real.json，train.py / evaluate.py /
 hetero_graph 直接可用。
 
 Usage:
