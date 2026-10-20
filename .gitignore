@@ -38,6 +38,11 @@ static/models/u2net.onnx
 # ===== 脚本生成的 3D 试穿模型 (见 gen_clothing_glb.py) =====
 frontend/public/models/clothes/
 
+# ===== 仓库外进程反复重写的早期基线记录 =====
+# 内容每次都不同且与论文表4-5 矛盾(RippleNet 0.4731 vs 论文 0.5153)，
+# 仓库内无任何脚本引用它，疑为 IDE 或外部脚本产物。永不入库。
+experiments/baseline_comparison.json
+
 # ===== Python =====
 __pycache__/
 *.py[cod]
