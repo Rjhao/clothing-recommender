@@ -157,7 +157,7 @@ def evaluate_one(model, interactions, data, device, n_negative=100, seed=42):
 def main():
     ap = argparse.ArgumentParser()
     ap.add_argument('--only', type=str, default=None, help='run single config tag')
-    ap.add_argument('--data', type=str, default='data/amazon_fashion_expanded.json')
+    ap.add_argument('--data', type=str, default='data/amazon_fashion_real.json')
     ap.add_argument('--epochs', type=int, default=100)
     ap.add_argument('--n-negative', type=int, default=100)
     ap.add_argument('--output', type=str, default='experiments/results/ablation_summary.json')

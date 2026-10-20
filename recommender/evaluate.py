@@ -9,7 +9,7 @@ Computes HR@K, NDCG@K, Precision@K, Recall@K metrics.
 
 Usage:
     python -m recommender.evaluate --model checkpoints/best_model.pt \
-        --data data/amazon_fashion_expanded.json
+        --data data/amazon_fashion_real.json
 """
 import argparse
 import json

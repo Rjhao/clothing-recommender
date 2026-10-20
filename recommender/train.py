@@ -93,7 +93,7 @@ def parse_args():
     parser.add_argument('--n-neg', type=int, default=4, help='negatives per positive (paper 1:4)')
 
     # Data
-    parser.add_argument('--data', type=str, default='data/amazon_fashion_expanded.json')
+    parser.add_argument('--data', type=str, default='data/amazon_fashion_real.json')
     parser.add_argument('--seed', type=int, default=42)
 
     # Improvements switches (for ablation)

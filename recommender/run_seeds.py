@@ -104,7 +104,7 @@ def run_one(seed, products, interactions, epochs=100, n_neg=4, lambda_kg=0.1):
 def main():
     ap = argparse.ArgumentParser()
     ap.add_argument('--seeds', nargs='+', type=int, default=[42, 123, 456, 789, 2024])
-    ap.add_argument('--data', default='data/amazon_fashion_expanded.json')
+    ap.add_argument('--data', default='data/amazon_fashion_real.json')
     ap.add_argument('--epochs', type=int, default=100)
     ap.add_argument('--n-neg', type=int, default=4)
     ap.add_argument('--lambda-kg', type=float, default=0.1)
