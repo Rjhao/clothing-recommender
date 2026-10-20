@@ -698,6 +698,11 @@ def main():
     ap.add_argument('--output', default='experiments/results/baselines_real.json')
     ap.add_argument('--ripplen-hops', type=int, default=2, help='RippleNet hops')
     ap.add_argument('--kgcl-lambda', type=float, default=0.1, help='KGCL lambda_cl')
+    ap.add_argument('--lambda-kg', type=float, default=0.05,
+                    help='MKR/CKAN 的 KG 损失权重 λ_KG（论文 表4-4）')
+    ap.add_argument('--kgin-layers', type=int, default=3, help='KGIN 关系路径聚合层数')
+    ap.add_argument('--kgin-memory', type=int, default=0,
+                    help='KGIN 每节点每关系邻居上限；0=不裁剪（默认，见 baselines_kg 说明）')
     args = ap.parse_args()
 
     np.random.seed(args.seed); torch.manual_seed(args.seed)
@@ -749,6 +754,24 @@ def main():
                 m = KGCL(n_u, n_i).to(dev)
                 m.fit(train_pos, train_neg, ei, et, n_total,
                       epochs=args.epochs, dev=dev, lambda_cl=args.kgcl_lambda)
+            elif name in ('mkr', 'kgin', 'ckan'):
+                from recommender.baselines_kg import MKR, KGIN, CKAN
+                from recommender.kgat.hetero_graph import build_kg_triplets
+                kg_graph = {'edge_index': ei, 'edge_type': et, 'n_total': n_total,
+                            'node_offsets': node_offsets}
+                if name == 'kgin':
+                    m = KGIN(n_u, n_i, dim=64, graph=kg_graph,
+                             n_layers=args.kgin_layers, n_memory=args.kgin_memory,
+                             seed=args.seed)
+                    m.fit(train_pos, train_neg, epochs=args.epochs, dev=dev)
+                else:
+                    trips = build_kg_triplets(products, data['item2idx'], node_offsets)
+                    if name == 'mkr':
+                        m = MKR(n_u, n_i, dim=64, graph=kg_graph, triplets=trips)
+                    else:
+                        m = CKAN(n_u, n_i, dim=64, graph=kg_graph, triplets=trips)
+                    m.fit(train_pos, train_neg, epochs=args.epochs, dev=dev,
+                          lambda_kg=args.lambda_kg)
             else:
                 logger.warning(f"unknown {name}, skip"); continue
             logger.info(f"  {name} trained in {time.time()-t0:.0f}s, evaluating...")
