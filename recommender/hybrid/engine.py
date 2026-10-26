@@ -121,9 +121,11 @@ class HybridRecommender:
         for rec in recs:
             clothing = rec["c"]
             if clothing and clothing.get("id"):
+                # 注：体型匹配项（body_match_score）已移除——本项目数据源无
+                # 体型信号，图中不存在 HAS_BODY_SHAPE 边，该项恒为 0
+                # （见论文 §3.1.2 本体的数据可得性说明）。
                 score = (
                     rec.get("style_match_score", 0) * 0.4 +
-                    rec.get("body_match_score", 0) * 0.3 +
                     rec.get("outfit_match_count", 0) * 0.3
                 )
                 scores[clothing["id"]] = score

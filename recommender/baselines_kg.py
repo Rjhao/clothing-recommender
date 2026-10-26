@@ -170,11 +170,19 @@ def build_directed_adj(edge_index, edge_type, node_offsets, n_memory=0, seed=42)
 
 
 def _transpose_csr(csr, n):
-    """CSR → 转置 CSR（用于自定义反向）。"""
-    coo = csr.to_sparse_coo().coalesce()
-    idx = coo.indices()
-    return torch.sparse_coo_tensor(
-        torch.stack([idx[1], idx[0]]), coo.values(), (n, n)).coalesce().to_sparse_csr()
+    """CSR → 转置 CSR（用于自定义反向）。
+
+    原实现走 CSR → COO → swap → 重建 → coalesce → CSR 的回路，尽管
+    ``coalesce()`` 内部确实会排序，但 PyTorch 关于 sparse CSR 的两个
+    warning (invariant violation / CSR beta state) 一并出现，且 KGIN
+    跑完 epoch 1/30 后进程失踪，极可能由这段非常规路径触发底层
+    SEGFAULT 而不抛 Python 异常。直接交给 PyTorch 内置 ``.t()`` 走
+    已验证的 sparse 转置路径，再按需落回 CSR。
+    """
+    t = csr.t()
+    if t.layout == torch.sparse_csr:
+        return t
+    return t.to_sparse_csr()
 
 
 class _SparseMM(torch.autograd.Function):

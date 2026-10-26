@@ -46,6 +46,9 @@ def parse_args():
     parser.add_argument('--use-c', type=int, default=1)
     parser.add_argument('--use-multimodal', type=int, default=0)
     parser.add_argument('--embedding-dim', type=int, default=64)
+    parser.add_argument('--use-cold-adjust', type=int, default=1,
+                        help='改进 A 的稀疏度调节项开关(须与训练时一致)。'
+                             '置 0 用于评测"无稀疏度自适应"的对照片段。')
 
     return parser.parse_args()
 
@@ -201,6 +204,8 @@ def main():
     ).to(device)
 
     model.load_state_dict(torch.load(args.model, map_location=device))
+    if not args.use_cold_adjust:
+        model.adaptive_gate.adaptive_gate.use_interaction_count = False
     logger.info("Model loaded")
 
     test_data = build_loo_test(

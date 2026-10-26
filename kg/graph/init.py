@@ -46,24 +46,10 @@ class GraphInitializer:
         {"category_id": "accessories", "name": "配饰"},
     ]
 
-    # Seed body shape data
-    SEED_BODY_SHAPES = [
-        {"body_shape_id": "slim", "name": "纤细型", "description": "身材纤细，骨架小"},
-        {"body_shape_id": "athletic", "name": "运动型", "description": "肌肉线条明显，体型健美"},
-        {"body_shape_id": "average", "name": "标准型", "description": "身材匀称，标准体型"},
-        {"body_shape_id": "curvy", "name": "曲线型", "description": "曲线明显，女性化"},
-        {"body_shape_id": "plus_size", "name": "大码型", "description": "体型偏大"}
-    ]
-
-    # Seed occasion data
-    SEED_OCCASIONS = [
-        {"occasion_id": "casual", "name": "日常休闲"},
-        {"occasion_id": "work", "name": "工作职场"},
-        {"occasion_id": "formal", "name": "正式场合"},
-        {"occasion_id": "sports", "name": "运动场合"},
-        {"occasion_id": "party", "name": "派对聚会"},
-        {"occasion_id": "daily", "name": "日常生活"},
-    ]
+    # 说明：体型（BodyShape）与场景（Occasion）两类实体及其关系
+    # （HAS_BODY_SHAPE / SUITABLE_FOR）在本项目所用公开数据源中无任何
+    # 可绑定实例——原始事件日志不含相关字段（见论文 §3.1.2 可得性说明），
+    # 故不纳入图谱初始化，避免产生无实例支撑的孤立节点。
 
     def __init__(self, driver: Driver):
         """Initialize with Neo4j driver."""
@@ -111,36 +97,11 @@ class GraphInitializer:
                 session.run(query, **category)
         logger.info(f"Seeded {len(self.SEED_CATEGORIES)} categories")
 
-    def seed_body_shapes(self):
-        """Seed body shape data."""
-        query = """
-        MERGE (bs:BodyShape {id: $body_shape_id})
-        SET bs.name = $name,
-            bs.description = $description
-        """
-        with self.driver.session() as session:
-            for body_shape in self.SEED_BODY_SHAPES:
-                session.run(query, **body_shape)
-        logger.info(f"Seeded {len(self.SEED_BODY_SHAPES)} body shapes")
-
-    def seed_occasions(self):
-        """Seed occasion data."""
-        query = """
-        MERGE (o:Occasion {id: $occasion_id})
-        SET o.name = $name
-        """
-        with self.driver.session() as session:
-            for occasion in self.SEED_OCCASIONS:
-                session.run(query, **occasion)
-        logger.info(f"Seeded {len(self.SEED_OCCASIONS)} occasions")
-
     def seed_all(self):
         """Seed all initial data."""
         self.initialize_schema()
         self.seed_styles()
         self.seed_categories()
-        self.seed_body_shapes()
-        self.seed_occasions()
         logger.info("Knowledge graph initialization complete")
 
 

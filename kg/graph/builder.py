@@ -57,12 +57,6 @@ class ClothingGraphBuilder:
     RETURN r
     """
 
-    USER_HAS_BODY_SHAPE = """
-    MATCH (u:User {id: $user_id}), (b:BodyShape {id: $body_shape_id})
-    MERGE (u)-[:HAS_BODY_SHAPE]->(b)
-    RETURN u
-    """
-
     USER_BOUGHT = """
     MATCH (u:User {id: $user_id}), (c:Clothing {id: $clothing_id})
     MERGE (u)-[:BOUGHT {timestamp: $timestamp}]->(c)
@@ -106,12 +100,6 @@ class ClothingGraphBuilder:
     MERGE (c1)-[r:SIMILAR_TO]->(c2)
     SET r.score = $score
     RETURN r
-    """
-
-    CLOTHING_SUITABLE_FOR = """
-    MATCH (c:Clothing {id: $clothing_id}), (o:Occasion {id: $occasion_id})
-    MERGE (c)-[:SUITABLE_FOR]->(o)
-    RETURN c
     """
 
     def __init__(self, driver: Driver):

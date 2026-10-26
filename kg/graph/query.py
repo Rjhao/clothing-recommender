@@ -160,21 +160,14 @@ class ClothingGraphQuery:
       RETURN c, sum(up.score) AS style_match_score
     }
     CALL {
-      WITH u, c
-      MATCH (u)-[r:HAS_BODY_SHAPE]->(bs:BodyShape)
-      WHERE (c)-[:HAS_BODY_SHAPE]->(bs)
-      RETURN sum(r.score) AS body_match_score
-    }
-    CALL {
       WITH c
       MATCH (c)-[:MATCHES_WITH]-(m:Clothing)
       RETURN count(m) AS outfit_match_count
     }
     RETURN c,
            style_match_score,
-           body_match_score,
            outfit_match_count
-    ORDER BY style_match_score DESC, body_match_score DESC
+    ORDER BY style_match_score DESC, outfit_match_count DESC
     LIMIT $limit
     """
 

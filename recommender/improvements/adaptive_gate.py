@@ -140,30 +140,22 @@ class AdaptiveGate(nn.Module):
                 if module.bias is not None:
                     nn.init.zeros_(module.bias)
 
-    def forward(
+    def compute_gate_weights(
         self,
         cf_features: torch.Tensor,
         kg_features: torch.Tensor,
         mm_features: Optional[torch.Tensor] = None,
         interaction_counts: Optional[torch.Tensor] = None,
         cf_confidence: Optional[torch.Tensor] = None,
-    ) -> Tuple[torch.Tensor, dict]:
-        """
-        Forward pass with adaptive gated fusion.
+    ) -> torch.Tensor:
+        """计算**实际生效**的门控权重(冷启动调整 + 置信度调制 + softmax 之后)。
 
-        Args:
-            cf_features: CF embeddings [batch, cf_dim]
-            kg_features: KG embeddings [batch, kg_dim]
-            mm_features: MM embeddings [batch, mm_dim] (optional, ignored if use_mm=False)
-            interaction_counts: User interaction counts [batch] (used for cold start detection)
-            cf_confidence: CF confidence scores [batch] (from CF module)
+        与 `forward` 走完全相同的计算路径,只返回权重而不做融合,
+        供门控行为分析使用(论文 §4.4 门控权重的稀疏度自适应实测)。
 
         Returns:
-            Tuple of (fused_features, gate_metrics)
+            gate_weights: [batch, n_gates],每样本的 CF / KG(/MM) 融合权重
         """
-        batch_size = cf_features.size(0)
-
-        # Build gate input
         if self.use_mm:
             if mm_features is None:
                 mm_features = torch.zeros_like(cf_features)
@@ -207,7 +199,37 @@ class AdaptiveGate(nn.Module):
             gates[:, 0] = gates[:, 0] * cf_confidence_adj.squeeze(-1)
 
         # Apply softmax to get valid probability weights
-        gate_weights = F.softmax(gates, dim=-1)  # [batch, n_gates]
+        return F.softmax(gates, dim=-1)  # [batch, n_gates]
+
+    def forward(
+        self,
+        cf_features: torch.Tensor,
+        kg_features: torch.Tensor,
+        mm_features: Optional[torch.Tensor] = None,
+        interaction_counts: Optional[torch.Tensor] = None,
+        cf_confidence: Optional[torch.Tensor] = None,
+    ) -> Tuple[torch.Tensor, dict]:
+        """
+        Forward pass with adaptive gated fusion.
+
+        Args:
+            cf_features: CF embeddings [batch, cf_dim]
+            kg_features: KG embeddings [batch, kg_dim]
+            mm_features: MM embeddings [batch, mm_dim] (optional, ignored if use_mm=False)
+            interaction_counts: User interaction counts [batch] (used for cold start detection)
+            cf_confidence: CF confidence scores [batch] (from CF module)
+
+        Returns:
+            Tuple of (fused_features, gate_metrics)
+        """
+        batch_size = cf_features.size(0)
+
+        # 实际生效的门控权重(冷启动调整 + 置信度调制 + softmax)
+        gate_weights = self.compute_gate_weights(
+            cf_features, kg_features, mm_features,
+            interaction_counts=interaction_counts,
+            cf_confidence=cf_confidence,
+        )
 
         # Process each modality (B-route: skip processors, project for dim alignment)
         if not self.use_processors:
@@ -262,16 +284,16 @@ class AdaptiveGate(nn.Module):
         kg_features: torch.Tensor,
         mm_features: Optional[torch.Tensor] = None,
         interaction_counts: Optional[torch.Tensor] = None,
+        cf_confidence: Optional[torch.Tensor] = None,
     ) -> torch.Tensor:
-        """Get raw gate weights without fusion (for analysis)."""
-        if self.use_mm:
-            if mm_features is None:
-                mm_features = torch.zeros_like(cf_features)
-            concat_features = torch.cat([cf_features, kg_features, mm_features], dim=-1)
-        else:
-            concat_features = torch.cat([cf_features, kg_features], dim=-1)
-        gates = self.gate_network(concat_features)
-        return F.softmax(gates, dim=-1)
+        """Get the effective gate weights (after cold-start adjustment and
+        confidence modulation) without performing the fusion — for analysis
+        of how the gate shifts with user interaction sparsity."""
+        return self.compute_gate_weights(
+            cf_features, kg_features, mm_features,
+            interaction_counts=interaction_counts,
+            cf_confidence=cf_confidence,
+        )
 
 
 class AdaptiveGateModule(nn.Module):
@@ -333,4 +355,19 @@ class AdaptiveGateModule(nn.Module):
         return self.adaptive_gate(
             cf_features, kg_features, mm_features,
             interaction_counts, cf_confidence
+        )
+
+    def get_gate_weights(
+        self,
+        cf_features: torch.Tensor,
+        kg_features: torch.Tensor,
+        mm_features: Optional[torch.Tensor] = None,
+        interaction_counts: Optional[torch.Tensor] = None,
+        cf_confidence: Optional[torch.Tensor] = None,
+    ) -> torch.Tensor:
+        """透传 AdaptiveGate.compute_gate_weights:返回实际生效的门控权重。"""
+        return self.adaptive_gate.compute_gate_weights(
+            cf_features, kg_features, mm_features,
+            interaction_counts=interaction_counts,
+            cf_confidence=cf_confidence,
         )

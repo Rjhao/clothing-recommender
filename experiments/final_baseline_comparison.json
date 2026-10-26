@@ -1,0 +1,77 @@
+{
+  "_note": "9 models × 6 metrics. MKR/KGIN/CKAN re-run on 2026-10-21 after _transpose_csr fix; other models from experiments/results/table45.md.",
+  "data": "data/amazon_fashion_real.json",
+  "test_protocol": "sampled-100 leave-one-out, n_neg=100, seed=42 (一致与 baselines_real.py)",
+  "KG-HybridRec (Ours)": {
+    "hr@10": 0.5909,
+    "ndcg@10": 0.4041,
+    "precision@10": 0.0591,
+    "hr@20": 0.7041,
+    "ndcg@20": 0.4327,
+    "precision@20": 0.0352
+  },
+  "KGAT": {
+    "hr@10": 0.5841,
+    "ndcg@10": 0.3990,
+    "precision@10": 0.0584,
+    "hr@20": 0.6929,
+    "ndcg@20": 0.4266,
+    "precision@20": 0.0346
+  },
+  "LightGCN": {
+    "hr@10": 0.5900,
+    "ndcg@10": 0.4609,
+    "precision@10": 0.0590,
+    "hr@20": 0.6642,
+    "ndcg@20": 0.4797,
+    "precision@20": 0.0332
+  },
+  "BPR-MF": {
+    "hr@10": 0.5201,
+    "ndcg@10": 0.3909,
+    "precision@10": 0.0520,
+    "hr@20": 0.6053,
+    "ndcg@20": 0.4124,
+    "precision@20": 0.0303
+  },
+  "RippleNet": {
+    "hr@10": 0.5153,
+    "ndcg@10": 0.3396,
+    "precision@10": 0.0515,
+    "hr@20": 0.6309,
+    "ndcg@20": 0.3688,
+    "precision@20": 0.0315
+  },
+  "KGCL": {
+    "hr@10": 0.5151,
+    "ndcg@10": 0.3896,
+    "precision@10": 0.0515,
+    "hr@20": 0.5974,
+    "ndcg@20": 0.4103,
+    "precision@20": 0.0299
+  },
+  "MKR": {
+    "hr@10": 0.5338,
+    "ndcg@10": 0.3600,
+    "precision@10": 0.0534,
+    "hr@20": 0.6461,
+    "ndcg@20": 0.3884,
+    "precision@20": 0.0323
+  },
+  "KGIN": {
+    "hr@10": 0.4960,
+    "ndcg@10": 0.3172,
+    "precision@10": 0.0496,
+    "hr@20": 0.6242,
+    "ndcg@20": 0.3496,
+    "precision@20": 0.0312
+  },
+  "CKAN": {
+    "hr@10": 0.5563,
+    "ndcg@10": 0.4183,
+    "precision@10": 0.0556,
+    "hr@20": 0.6500,
+    "ndcg@20": 0.4420,
+    "precision@20": 0.0325
+  }
+}

@@ -101,6 +101,10 @@ def parse_args():
     parser.add_argument('--use-b', type=int, default=1, help='graph contrastive')
     parser.add_argument('--use-c', type=int, default=1, help='attention explain')
     parser.add_argument('--use-multimodal', type=int, default=0)
+    parser.add_argument('--use-cold-adjust', type=int, default=1,
+                        help='改进 A 的稀疏度调节项(冷启动时压低 CF 权重、抬高 KG 权重)。'
+                             '置 0 即训练一个"无稀疏度自适应"的对照片段,用于量化该机制'
+                             '的实际贡献(论文 §4.4.5 门控权重的稀疏度自适应实测)。')
 
     # Output
     parser.add_argument('--output-dir', type=str, default='checkpoints')
@@ -268,6 +272,12 @@ def train(args):
 
     logger.info(f"Model parameters: {sum(p.numel() for p in model.parameters()):,}")
 
+    # 稀疏度自适应调节项开关:关闭后门控不再随用户交互数向 KG 侧倾斜
+    # (仅保留 CF 置信度调制),用于训练对照片段(论文 §4.4.5)。
+    if not args.use_cold_adjust:
+        model.adaptive_gate.adaptive_gate.use_interaction_count = False
+        logger.info("Cold-start sparsity adjustment DISABLED (control run)")
+
     # Create trainer
     trainer = KGHybridRecTrainer(
         model=model,
@@ -378,6 +388,16 @@ def train(args):
 
         # Update scheduler
         trainer.scheduler.step(avg_val_loss)
+
+        # 每轮落盘训练历史(便于长训练被中断时仍保留完整曲线)
+        with open(output_dir / 'history.json', 'w', encoding='utf-8') as f:
+            json.dump({
+                'train': train_history,
+                'val': val_history,
+                'args': vars(args),
+                'best_val_loss': best_val_loss,
+                'epochs_completed': epoch + 1,
+            }, f, indent=2)
 
     # Save final model
     torch.save(model.state_dict(), output_dir / 'final_model.pt')
