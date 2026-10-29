@@ -1,0 +1,38 @@
+INFO:__main__:device: cuda
+INFO:recommender.train:Loading data from data/amazon_fashion_real.json
+INFO:recommender.train:Loaded 21683 products, 64097 users, 273464 interactions
+INFO:recommender.train:Users: 64097, Items: 21683
+INFO:recommender.train:Train: 145270, Val: 64097, Test: 64097, n_neg: 4
+INFO:__main__:graph: 87370 nodes, 424866 edges, 4 relations
+INFO:__main__:model loaded: checkpoints/m3_gate_l2off/best_model.pt
+INFO:__main__:test users: 64097
+INFO:__main__:Spearman(count, w_kg): rho=-0.1134 p=2.8e-182
+INFO:__main__:Spearman(count, w_cf): rho=0.1134 p=2.8e-182
+INFO:__main__:cold users (<5): 47592
+INFO:__main__:cold HR@10: on=0.6000 off(inference)=0.6005 (delta=-0.0005)
+INFO:__main__:cold HR@10: on=0.6000 off(retrained)=0.5995 (delta=+0.0005)
+INFO:__main__:results saved: experiments/results/gate_weights.json
+INFO:__main__:figure saved: figures/图4-5_门控权重稀疏度自适应.png
+Traceback (most recent call last):
+  File "<frozen runpy>", line 198, in _run_module_as_main
+  File "<frozen runpy>", line 88, in _run_code
+  File "D:\clothing-recommender\experiments\eval_gate_weights.py", line 450, in <module>
+    main()
+  File "D:\clothing-recommender\experiments\eval_gate_weights.py", line 445, in main
+    f"without={cf_result['without_cold_adjustment']['hr@10']:.4f} "
+               ~~~~~~~~~^^^^^^^^^^^^^^^^^^^^^^^^^^^
+KeyError: 'without_cold_adjustment'
+
+| 交互数分桶 | 用户数 | w_cf 均值 | w_kg 均值 | KG/CF | 关调节后 w_kg | 调节位移 |
+|---|---|---|---|---|---|---|
+| 3-3 | 33452 | 0.4770 | 0.5230 | 1.777 | 0.4246 | +0.0984 |
+| 4-4 | 14140 | 0.4903 | 0.5097 | 1.685 | 0.4197 | +0.0900 |
+| 5-5 | 6639 | 0.4978 | 0.5022 | 1.699 | 0.4234 | +0.0788 |
+| 6-7 | 5591 | 0.5157 | 0.4843 | 1.595 | 0.4234 | +0.0609 |
+| 8-9 | 2126 | 0.5523 | 0.4477 | 1.344 | 0.4191 | +0.0286 |
+| 10-14 | 1569 | 0.5676 | 0.4324 | 1.330 | 0.4324 | +0.0000 |
+| 15-19 | 349 | 0.5651 | 0.4349 | 1.279 | 0.4349 | +0.0000 |
+| 20-29 | 175 | 0.5788 | 0.4212 | 1.186 | 0.4212 | +0.0000 |
+| 30-+ | 56 | 0.6024 | 0.3976 | 0.862 | 0.3976 | +0.0000 |
+
+Spearman(count, w_kg) = -0.1134 (p=2.8e-182)

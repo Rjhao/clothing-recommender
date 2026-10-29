@@ -1,0 +1,9 @@
+[load data] ...
+2026-08-17 21:18:53,797 - INFO - Loading data from data/amazon_fashion_real.json
+2026-08-17 21:18:54,077 - INFO - Loaded 21683 products, 64097 users, 273464 interactions
+2026-08-17 21:18:56,041 - INFO - Users: 64097, Items: 21683
+2026-08-17 21:18:56,041 - INFO - Train: 145270, Val: 64097, Test: 64097, n_neg: 4
+OK  abl_m1   unique=  13 expected=13 time=437s
+OK  abl_m2   unique=  14 expected=14 time=445s
+OK  abl_m3   unique=  14 expected=14 time=452s
+exit=0

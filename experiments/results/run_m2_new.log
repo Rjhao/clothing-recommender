@@ -1,0 +1,90 @@
+==================== [abl_m2_new] A=1 B=1 C=0 (B α=0.1 fused mix) ====================
+[21:41:39] training abl_m2_new ...
+2026-08-17 21:41:41,484 - INFO - Loading data from data/amazon_fashion_real.json
+2026-08-17 21:41:41,787 - INFO - Loaded 21683 products, 64097 users, 273464 interactions
+2026-08-17 21:41:43,709 - INFO - Users: 64097, Items: 21683
+2026-08-17 21:41:43,709 - INFO - Train: 145270, Val: 64097, Test: 64097, n_neg: 4
+2026-08-17 21:41:43,724 - INFO - Using device: cuda
+2026-08-17 21:41:43,915 - INFO - Built hetero graph: 87370 nodes, 424866 edges, 4 relations
+2026-08-17 21:41:43,948 - INFO - Built 67163 KG triplets for TransR
+2026-08-17 21:41:44,081 - INFO - Creating KG-HybridRec model...
+2026-08-17 21:41:44,081 - INFO - Improvements: A=True B=True C=False MM=True
+2026-08-17 21:41:44,333 - INFO - Model parameters: 16,970,585
+2026-08-17 21:45:50,383 - INFO - Epoch 1/20 - Train Loss: 3.0461, Val Loss: 2.0148
+2026-08-17 21:45:50,383 - INFO -   Train BPR: 0.4284, Val BPR: 0.4257
+2026-08-17 21:45:50,470 - INFO -   Saved best model (val_loss=2.0148)
+2026-08-17 21:49:52,867 - INFO - Epoch 2/20 - Train Loss: 1.4926, Val Loss: 1.1659
+2026-08-17 21:49:52,867 - INFO -   Train BPR: 0.3822, Val BPR: 0.4279
+2026-08-17 21:49:52,973 - INFO -   Saved best model (val_loss=1.1659)
+2026-08-17 21:53:55,216 - INFO - Epoch 3/20 - Train Loss: 0.9224, Val Loss: 0.7988
+2026-08-17 21:53:55,216 - INFO -   Train BPR: 0.3782, Val BPR: 0.4113
+2026-08-17 21:53:55,367 - INFO -   Saved best model (val_loss=0.7988)
+2026-08-17 21:57:58,057 - INFO - Epoch 4/20 - Train Loss: 0.6847, Val Loss: 0.6572
+2026-08-17 21:57:58,057 - INFO -   Train BPR: 0.3740, Val BPR: 0.4116
+2026-08-17 21:57:58,151 - INFO -   Saved best model (val_loss=0.6572)
+2026-08-17 22:01:57,294 - INFO - Epoch 5/20 - Train Loss: 0.5837, Val Loss: 0.6023
+2026-08-17 22:01:57,294 - INFO -   Train BPR: 0.3706, Val BPR: 0.4201
+2026-08-17 22:01:57,374 - INFO -   Saved best model (val_loss=0.6023)
+2026-08-17 22:05:58,071 - INFO - Epoch 6/20 - Train Loss: 0.5403, Val Loss: 0.5776
+2026-08-17 22:05:58,071 - INFO -   Train BPR: 0.3673, Val BPR: 0.4183
+2026-08-17 22:05:58,167 - INFO -   Saved best model (val_loss=0.5776)
+2026-08-17 22:10:03,203 - INFO - Epoch 7/20 - Train Loss: 0.5221, Val Loss: 0.5658
+2026-08-17 22:10:03,204 - INFO -   Train BPR: 0.3652, Val BPR: 0.4159
+2026-08-17 22:10:03,307 - INFO -   Saved best model (val_loss=0.5658)
+2026-08-17 22:14:07,426 - INFO - Epoch 8/20 - Train Loss: 0.5143, Val Loss: 0.5571
+2026-08-17 22:14:07,427 - INFO -   Train BPR: 0.3632, Val BPR: 0.4121
+2026-08-17 22:14:07,512 - INFO -   Saved best model (val_loss=0.5571)
+2026-08-17 22:18:07,570 - INFO - Epoch 9/20 - Train Loss: 0.5097, Val Loss: 0.5719
+2026-08-17 22:18:07,570 - INFO -   Train BPR: 0.3617, Val BPR: 0.4259
+2026-08-17 22:22:03,754 - INFO - Epoch 10/20 - Train Loss: 0.5069, Val Loss: 0.5601
+2026-08-17 22:22:03,754 - INFO -   Train BPR: 0.3599, Val BPR: 0.4162
+2026-08-17 22:26:09,101 - INFO - Epoch 11/20 - Train Loss: 0.5044, Val Loss: 0.5585
+2026-08-17 22:26:09,101 - INFO -   Train BPR: 0.3593, Val BPR: 0.4161
+2026-08-17 22:31:30,804 - INFO - Epoch 12/20 - Train Loss: 0.5030, Val Loss: 0.5615
+2026-08-17 22:31:30,804 - INFO -   Train BPR: 0.3574, Val BPR: 0.4158
+2026-08-17 22:36:56,858 - INFO - Epoch 13/20 - Train Loss: 0.5012, Val Loss: 0.5590
+2026-08-17 22:36:56,858 - INFO -   Train BPR: 0.3561, Val BPR: 0.4175
+2026-08-17 22:42:14,328 - INFO - Epoch 14/20 - Train Loss: 0.4983, Val Loss: 0.5625
+2026-08-17 22:42:14,328 - INFO -   Train BPR: 0.3544, Val BPR: 0.4219
+2026-08-17 22:47:06,075 - INFO - Epoch 15/20 - Train Loss: 0.4763, Val Loss: 0.5472
+2026-08-17 22:47:06,075 - INFO -   Train BPR: 0.3464, Val BPR: 0.4222
+2026-08-17 22:47:06,157 - INFO -   Saved best model (val_loss=0.5472)
+2026-08-17 22:52:27,772 - INFO - Epoch 16/20 - Train Loss: 0.4684, Val Loss: 0.5447
+2026-08-17 22:52:27,772 - INFO -   Train BPR: 0.3440, Val BPR: 0.4221
+2026-08-17 22:52:27,855 - INFO -   Saved best model (val_loss=0.5447)
+2026-08-17 22:57:44,694 - INFO - Epoch 17/20 - Train Loss: 0.4660, Val Loss: 0.5517
+2026-08-17 22:57:44,695 - INFO -   Train BPR: 0.3432, Val BPR: 0.4296
+2026-08-17 23:03:00,038 - INFO - Epoch 18/20 - Train Loss: 0.4671, Val Loss: 0.5418
+2026-08-17 23:03:00,038 - INFO -   Train BPR: 0.3439, Val BPR: 0.4167
+2026-08-17 23:03:00,116 - INFO -   Saved best model (val_loss=0.5418)
+2026-08-17 23:08:12,074 - INFO - Epoch 19/20 - Train Loss: 0.4669, Val Loss: 0.5479
+2026-08-17 23:08:12,074 - INFO -   Train BPR: 0.3434, Val BPR: 0.4258
+2026-08-17 23:12:16,740 - INFO - Epoch 20/20 - Train Loss: 0.4675, Val Loss: 0.5410
+2026-08-17 23:12:16,740 - INFO -   Train BPR: 0.3438, Val BPR: 0.4175
+2026-08-17 23:12:16,831 - INFO -   Saved best model (val_loss=0.5410)
+2026-08-17 23:12:16,971 - INFO - Training complete!
+2026-08-17 23:12:16,971 - INFO - Best validation loss: 0.5410
+2026-08-17 23:12:16,971 - INFO - Models saved to checkpoints\abl_m2_new
+[23:12:18] evaluating abl_m2_new ...
+INFO:recommender.train:Loading data from data/amazon_fashion_real.json
+INFO:recommender.train:Loaded 21683 products, 64097 users, 273464 interactions
+INFO:recommender.train:Users: 64097, Items: 21683
+INFO:recommender.train:Train: 145270, Val: 64097, Test: 64097, n_neg: 4
+INFO:__main__:Device: cuda
+INFO:__main__:Built hetero graph: 87370 nodes, 424866 edges
+Traceback (most recent call last):
+  File "<frozen runpy>", line 198, in _run_module_as_main
+  File "<frozen runpy>", line 88, in _run_code
+  File "D:\clothing-recommender\recommender\evaluate.py", line 229, in <module>
+    main()
+  File "D:\clothing-recommender\recommender\evaluate.py", line 203, in main
+    model.load_state_dict(torch.load(args.model, map_location=device))
+  File "C:\Python311\Lib\site-packages\torch\nn\modules\module.py", line 2639, in load_state_dict
+    raise RuntimeError(
+RuntimeError: Error(s) in loading state_dict for KGHybridRec:
+	Unexpected key(s) in state_dict: "mm_module.clip_encoder.projection.weight", "mm_module.clip_encoder.projection.bias", "mm_module.bert_encoder.projection.weight", "mm_module.bert_encoder.projection.bias", "mm_module.fusion.image_weight", "mm_module.fusion.text_weight". 
+	size mismatch for adaptive_gate.adaptive_gate.gate_network.0.weight: copying a param with shape torch.Size([32, 256]) from checkpoint, the shape in current model is torch.Size([32, 192]).
+	size mismatch for adaptive_gate.adaptive_gate.gate_network.3.weight: copying a param with shape torch.Size([3, 32]) from checkpoint, the shape in current model is torch.Size([2, 32]).
+	size mismatch for adaptive_gate.adaptive_gate.gate_network.3.bias: copying a param with shape torch.Size([3]) from checkpoint, the shape in current model is torch.Size([2]).
+!!!! [abl_m2_new] EVAL FAILED
+exit=1

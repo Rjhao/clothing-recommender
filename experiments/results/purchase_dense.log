@@ -1,0 +1,40 @@
+2026-07-11 20:04:13,337 - INFO - Device: cuda
+2026-07-11 20:04:13,337 - INFO - Loading data from data/amazon_fashion_real.json
+2026-07-11 20:04:13,644 - INFO - Loaded 21683 products, 64097 users, 273464 interactions
+2026-07-11 20:04:15,654 - INFO - Users: 64097, Items: 21683
+2026-07-11 20:04:15,654 - INFO - Train: 145270, Val: 64097, Test: 64097, n_neg: 4
+2026-07-11 20:05:24,900 - INFO - data=data/amazon_fashion_real.json train=145270 test=64097 n_u=64097 n_i=21683 epochs=30
+2026-07-11 20:05:25,117 - INFO - Hetero graph: 87370 nodes, 424866 edges
+2026-07-11 20:05:25,117 - INFO - ==== ripplen ====
+2026-07-11 20:05:58,681 - INFO -   RippleNet ep 1/30 loss=0.6931
+2026-07-11 20:06:16,558 - INFO -   RippleNet ep 10/30 loss=0.6931
+2026-07-11 20:06:34,021 - INFO -   RippleNet ep 20/30 loss=0.6931
+2026-07-11 20:06:50,479 - INFO -   RippleNet ep 30/30 loss=0.6931
+2026-07-11 20:06:50,481 - INFO -   ripplen trained in 85s, evaluating...
+2026-07-11 20:06:50,833 - INFO -   eval 10240/64097 0s
+2026-07-11 20:06:51,179 - INFO -   eval 20480/64097 1s
+2026-07-11 20:06:51,517 - INFO -   eval 30720/64097 1s
+2026-07-11 20:06:51,867 - INFO -   eval 40960/64097 1s
+2026-07-11 20:06:52,222 - INFO -   eval 51200/64097 2s
+2026-07-11 20:06:52,572 - INFO -   eval 61440/64097 2s
+2026-07-11 20:06:52,670 - INFO -   eval 64097/64097 2s
+2026-07-11 20:06:52,744 - INFO -   ripplen: HR@10=0.2343 NDCG@10=0.1236  Precision@10=0.0234 Recall@10=0.2343  (88s total)
+2026-07-11 20:06:52,744 - INFO - ==== kgcl ====
+2026-07-11 20:09:52,477 - INFO -   KGCL ep 1/30 loss=0.9327
+2026-07-11 20:34:14,941 - INFO -   KGCL ep 10/30 loss=0.6179
+2026-07-11 21:01:40,445 - INFO -   KGCL ep 20/30 loss=0.6069
+2026-07-11 21:38:03,786 - INFO -   KGCL ep 30/30 loss=0.6036
+2026-07-11 21:38:03,787 - INFO -   kgcl trained in 5471s, evaluating...
+2026-07-11 21:38:04,115 - INFO -   eval 10240/64097 0s
+2026-07-11 21:38:04,434 - INFO -   eval 20480/64097 1s
+2026-07-11 21:38:04,757 - INFO -   eval 30720/64097 1s
+2026-07-11 21:38:05,110 - INFO -   eval 40960/64097 1s
+2026-07-11 21:38:05,448 - INFO -   eval 51200/64097 2s
+2026-07-11 21:38:05,783 - INFO -   eval 61440/64097 2s
+2026-07-11 21:38:05,884 - INFO -   eval 64097/64097 2s
+2026-07-11 21:38:05,970 - INFO -   kgcl: HR@10=0.2312 NDCG@10=0.1239  Precision@10=0.0231 Recall@10=0.2312  (5473s total)
+2026-07-11 21:38:05,975 - INFO - saved -> experiments\results\purchase_dense.json
+
+=== Baselines on real data ===
+  ripplen    HR@10=0.2343  NDCG@10=0.1236  HR@20=0.3373
+  kgcl       HR@10=0.2312  NDCG@10=0.1239  HR@20=0.3350

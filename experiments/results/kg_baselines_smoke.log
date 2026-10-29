@@ -1,0 +1,17 @@
+2026-10-21 10:52:17,415 - device=cuda
+2026-10-21 10:52:18,059 - Loading data from data/amazon_fashion_real.json
+2026-10-21 10:52:18,410 - Loaded 21683 products, 64097 users, 273464 interactions
+2026-10-21 10:52:20,376 - Users: 64097, Items: 21683
+2026-10-21 10:52:20,376 - Train: 145270, Val: 64097, Test: 64097, n_neg: 4
+2026-10-21 10:53:19,469 - graph nodes=87370 edges=424866 triplets=(67163, 3) test_users=200
+2026-10-21 10:53:19,469 - ==== kgin ====
+D:\clothing-recommender\recommender\baselines_kg.py:167: UserWarning: Sparse invariant checks are implicitly disabled. Memory errors (e.g. SEGFAULT) will occur when operating on a sparse tensor which violates the invariants, but checks incur performance overhead. To silence this warning, explicitly opt in or out. See `torch.sparse.check_sparse_tensor_invariants.__doc__` for guidance.  (Triggered internally at C:\actions-runner\_work\pytorch\pytorch\pytorch\aten\src\ATen\Context.cpp:767.)
+  adjs.append(torch.sparse_coo_tensor(
+D:\clothing-recommender\recommender\baselines_kg.py:406: UserWarning: Sparse CSR tensor support is in beta state. If you miss a functionality in the sparse tensor support, please submit a feature request to https://github.com/pytorch/pytorch/issues. (Triggered internally at C:\actions-runner\_work\pytorch\pytorch\pytorch\aten\src\ATen\SparseCsrTensorImpl.cpp:51.)
+  csr = a.to(dev).to_sparse_csr()
+  KGIN ep 1/5 loss=0.4237
+  KGIN ep 5/5 loss=0.2443
+2026-10-21 10:59:04,710 -   trained in 345s, evaluating...
+2026-10-21 10:59:04,753 -   eval 200/200 0s
+2026-10-21 10:59:04,753 -   kgin: HR@10=0.4850 NDCG@10=0.3393 P@10=0.0485 HR@20=0.6250 NDCG@20=0.3744 P@20=0.0312
+2026-10-21 10:59:04,772 - saved -> experiments\results\kg_baselines.json

@@ -1,0 +1,45 @@
+2026-10-21 10:59:22,632 - device=cuda
+2026-10-21 10:59:22,995 - Loading data from data/amazon_fashion_real.json
+2026-10-21 10:59:23,325 - Loaded 21683 products, 64097 users, 273464 interactions
+2026-10-21 10:59:25,531 - Users: 64097, Items: 21683
+2026-10-21 10:59:25,531 - Train: 145270, Val: 64097, Test: 64097, n_neg: 4
+2026-10-21 11:00:19,296 - graph nodes=87370 edges=424866 triplets=(67163, 3) test_users=64097
+2026-10-21 11:00:19,296 - ==== kgin ====
+D:\clothing-recommender\recommender\baselines_kg.py:167: UserWarning: Sparse invariant checks are implicitly disabled. Memory errors (e.g. SEGFAULT) will occur when operating on a sparse tensor which violates the invariants, but checks incur performance overhead. To silence this warning, explicitly opt in or out. See `torch.sparse.check_sparse_tensor_invariants.__doc__` for guidance.  (Triggered internally at C:\actions-runner\_work\pytorch\pytorch\pytorch\aten\src\ATen\Context.cpp:767.)
+  adjs.append(torch.sparse_coo_tensor(
+D:\clothing-recommender\recommender\baselines_kg.py:406: UserWarning: Sparse CSR tensor support is in beta state. If you miss a functionality in the sparse tensor support, please submit a feature request to https://github.com/pytorch/pytorch/issues. (Triggered internally at C:\actions-runner\_work\pytorch\pytorch\pytorch\aten\src\ATen\SparseCsrTensorImpl.cpp:51.)
+  csr = a.to(dev).to_sparse_csr()
+  KGIN ep 1/30 loss=0.4237
+  KGIN ep 5/30 loss=0.2425
+  KGIN ep 10/30 loss=0.1116
+  KGIN ep 15/30 loss=0.0514
+  KGIN ep 20/30 loss=0.0257
+  KGIN ep 25/30 loss=0.0132
+  KGIN ep 30/30 loss=0.0062
+2026-10-21 11:35:53,423 -   trained in 2134s, evaluating...
+2026-10-21 11:35:54,454 -   eval 10240/64097 1s
+2026-10-21 11:35:55,496 -   eval 20480/64097 2s
+2026-10-21 11:35:56,560 -   eval 30720/64097 3s
+2026-10-21 11:35:57,655 -   eval 40960/64097 4s
+2026-10-21 11:35:58,764 -   eval 51200/64097 5s
+2026-10-21 11:35:59,833 -   eval 61440/64097 6s
+2026-10-21 11:36:00,177 -   eval 64097/64097 7s
+2026-10-21 11:36:00,234 -   kgin: HR@10=0.4960 NDCG@10=0.3172 P@10=0.0496 HR@20=0.6242 NDCG@20=0.3496 P@20=0.0312
+2026-10-21 11:36:00,273 - ==== ckan ====
+  CKAN ep 1/30 loss=0.5620 bpr=0.5570 kg=0.1011
+  CKAN ep 5/30 loss=0.0359 bpr=0.0358 kg=0.0013
+  CKAN ep 10/30 loss=0.0041 bpr=0.0040 kg=0.0006
+  CKAN ep 15/30 loss=0.0008 bpr=0.0008 kg=0.0004
+  CKAN ep 20/30 loss=0.0002 bpr=0.0002 kg=0.0003
+  CKAN ep 25/30 loss=0.0001 bpr=0.0001 kg=0.0002
+  CKAN ep 30/30 loss=0.0000 bpr=0.0000 kg=0.0002
+2026-10-21 11:39:35,856 -   trained in 216s, evaluating...
+2026-10-21 11:39:36,177 -   eval 10240/64097 0s
+2026-10-21 11:39:36,468 -   eval 20480/64097 1s
+2026-10-21 11:39:36,769 -   eval 30720/64097 1s
+2026-10-21 11:39:37,065 -   eval 40960/64097 1s
+2026-10-21 11:39:37,380 -   eval 51200/64097 2s
+2026-10-21 11:39:37,696 -   eval 61440/64097 2s
+2026-10-21 11:39:37,782 -   eval 64097/64097 2s
+2026-10-21 11:39:37,814 -   ckan: HR@10=0.5563 NDCG@10=0.4183 P@10=0.0556 HR@20=0.6500 NDCG@20=0.4420 P@20=0.0325
+2026-10-21 11:39:37,818 - saved -> experiments\results\kg_baselines.json

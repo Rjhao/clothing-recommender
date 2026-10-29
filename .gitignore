@@ -18,8 +18,10 @@ hr_viton/
 # shop-tryon-skill 是独立 clone 的 skill 包 (自带 .git), 提交会成为断链的 gitlink
 shop-tryon-skill/
 
-# ===== 模型权重 (单个 46-66MB; 保留同目录的 *.json 指标与 history) =====
-checkpoints/**/*.pt
+# ===== 模型权重 (单个 46-66MB) =====
+# 改为入库: .gitattributes 的 `*.pt filter=lfs` 会把权重转成 LFS 指针,
+# 仓库里只存约 130 字节指针, 大文件落在 LFS 存储 (GitHub Free 含 10 GiB)。
+# 同目录的 *.json 指标与 history 一并保留。
 
 # ===== 根目录 tryon 调试图 (非论文图表, 论文配图在 figures/) =====
 /compare_grid_*.png
@@ -60,6 +62,9 @@ frontend/.vite/
 *.log
 npm-debug.log*
 yarn-debug.log*
+# 训练/评测日志是论文证据 (表4-5 引用 kg_baselines_full.log), 不排除
+!checkpoints/**/*.log
+!experiments/results/*.log
 
 # ===== IDE / 编辑器 =====
 .idea/

@@ -1,0 +1,29 @@
+2026-10-20 22:57:30,822 - device=cuda
+2026-10-20 22:57:31,223 - Loading data from data/amazon_fashion_real.json
+2026-10-20 22:57:31,556 - Loaded 21683 products, 64097 users, 273464 interactions
+2026-10-20 22:57:33,736 - Users: 64097, Items: 21683
+2026-10-20 22:57:33,736 - Train: 145270, Val: 64097, Test: 64097, n_neg: 4
+2026-10-20 22:58:38,224 - graph nodes=87370 edges=424866 triplets=(67163, 3) test_users=64097
+2026-10-20 22:58:38,224 - ==== mkr ====
+  MKR ep 1/30 loss=0.6474 bpr=0.6417 kg=0.1131
+  MKR ep 5/30 loss=0.1255 bpr=0.1253 kg=0.0031
+  MKR ep 10/30 loss=0.0356 bpr=0.0355 kg=0.0020
+  MKR ep 15/30 loss=0.0131 bpr=0.0131 kg=0.0013
+  MKR ep 20/30 loss=0.0055 bpr=0.0055 kg=0.0007
+  MKR ep 25/30 loss=0.0024 bpr=0.0024 kg=0.0005
+  MKR ep 30/30 loss=0.0016 bpr=0.0015 kg=0.0004
+2026-10-20 23:52:33,968 -   trained in 3236s, evaluating...
+2026-10-20 23:52:34,378 -   eval 10240/64097 0s
+2026-10-20 23:52:34,795 -   eval 20480/64097 1s
+2026-10-20 23:52:35,231 -   eval 30720/64097 1s
+2026-10-20 23:52:35,588 -   eval 40960/64097 2s
+2026-10-20 23:52:35,985 -   eval 51200/64097 2s
+2026-10-20 23:52:36,369 -   eval 61440/64097 2s
+2026-10-20 23:52:36,466 -   eval 64097/64097 2s
+2026-10-20 23:52:36,500 -   mkr: HR@10=0.5338 NDCG@10=0.3600 P@10=0.0534 HR@20=0.6461 NDCG@20=0.3884 P@20=0.0323
+2026-10-20 23:52:36,508 - ==== kgin ====
+D:\clothing-recommender\recommender\baselines_kg.py:167: UserWarning: Sparse invariant checks are implicitly disabled. Memory errors (e.g. SEGFAULT) will occur when operating on a sparse tensor which violates the invariants, but checks incur performance overhead. To silence this warning, explicitly opt in or out. See `torch.sparse.check_sparse_tensor_invariants.__doc__` for guidance.  (Triggered internally at C:\actions-runner\_work\pytorch\pytorch\pytorch\aten\src\ATen\Context.cpp:767.)
+  adjs.append(torch.sparse_coo_tensor(
+D:\clothing-recommender\recommender\baselines_kg.py:398: UserWarning: Sparse CSR tensor support is in beta state. If you miss a functionality in the sparse tensor support, please submit a feature request to https://github.com/pytorch/pytorch/issues. (Triggered internally at C:\actions-runner\_work\pytorch\pytorch\pytorch\aten\src\ATen\SparseCsrTensorImpl.cpp:51.)
+  csr = a.to(dev).to_sparse_csr()
+  KGIN ep 1/30 loss=0.4240

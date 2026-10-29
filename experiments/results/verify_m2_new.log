@@ -1,0 +1,9 @@
+[load data] tag=abl_m2_new
+2026-08-17 23:39:24,882 - INFO - Loading data from data/amazon_fashion_real.json
+2026-08-17 23:39:25,168 - INFO - Loaded 21683 products, 64097 users, 273464 interactions
+2026-08-17 23:39:27,098 - INFO - Users: 64097, Items: 21683
+2026-08-17 23:39:27,098 - INFO - Train: 145270, Val: 64097, Test: 64097, n_neg: 4
+[load] real_missing=0 unexpected=0
+[hr10] ...
+2026-08-17 23:39:28,065 - INFO - Loading data from data/amazon_fashion_real.json
+2026-08-17 23:39:28,277 - INFO - Loaded 21683 products, 64097 users, 273464 interactions
